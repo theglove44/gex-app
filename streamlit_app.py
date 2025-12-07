@@ -55,24 +55,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-def create_gex_chart(result) -> go.Figure:
-    """Create an interactive Plotly bar chart for GEX profile."""
-    df = result.strike_gex
-
-    # Color coding: green for positive (call walls), red for negative (put walls)
-    colors = ['#00c853' if x >= 0 else '#ff5252' for x in df['Net GEX ($M)']]
-
-    fig = go.Figure()
-
-    # Main GEX bars
-    fig.add_trace(go.Bar(
-        x=df['Strike'],
-        y=df['Net GEX ($M)'],
-        marker_color=colors,
-        name='Net GEX',
-        hovertemplate='<b>Strike: $%{x:.0f}</b><br>GEX: $%{y:.1f}M<extra></extra>',
-        opacity=0.8
-    ))
+def _add_common_vertical_markers(fig: go.Figure, result):
+    """Add spot/zero gamma/call wall/put wall markers to a figure."""
 
     # Spot price line
     fig.add_vline(
@@ -119,6 +103,62 @@ def create_gex_chart(result) -> go.Figure:
             opacity=0.5
         )
 
+    return fig
+
+
+def interpolate_gex_at_spot(strike_gex: pd.DataFrame, spot: float) -> float | None:
+    """Estimate net gamma at the current spot using linear interpolation between strikes."""
+
+    if strike_gex.empty:
+        return None
+
+    ordered = strike_gex.sort_values('Strike')
+    strikes = ordered['Strike'].values
+    gex_values = ordered['Net GEX ($M)'].values
+
+    # Exact strike match
+    for strike, gex_value in zip(strikes, gex_values):
+        if strike == spot:
+            return float(gex_value)
+
+    # Spot below/above bounds, clamp to nearest edge
+    if spot <= strikes[0]:
+        return float(gex_values[0])
+    if spot >= strikes[-1]:
+        return float(gex_values[-1])
+
+    # Linear interpolation between surrounding strikes
+    for i in range(len(strikes) - 1):
+        left_strike, right_strike = strikes[i], strikes[i + 1]
+        if left_strike <= spot <= right_strike:
+            left_gex, right_gex = gex_values[i], gex_values[i + 1]
+            slope = (right_gex - left_gex) / (right_strike - left_strike)
+            return float(left_gex + slope * (spot - left_strike))
+
+    return None
+
+
+def create_gex_chart(result) -> go.Figure:
+    """Create an interactive Plotly bar chart for GEX profile."""
+    df = result.strike_gex
+
+    # Color coding: green for positive (call walls), red for negative (put walls)
+    colors = ['#00c853' if x >= 0 else '#ff5252' for x in df['Net GEX ($M)']]
+
+    fig = go.Figure()
+
+    # Main GEX bars
+    fig.add_trace(go.Bar(
+        x=df['Strike'],
+        y=df['Net GEX ($M)'],
+        marker_color=colors,
+        name='Net GEX',
+        hovertemplate='<b>Strike: $%{x:.0f}</b><br>GEX: $%{y:.1f}M<extra></extra>',
+        opacity=0.8
+    ))
+
+    fig = _add_common_vertical_markers(fig, result)
+
     # Layout
     fig.update_layout(
         title=dict(
@@ -133,6 +173,80 @@ def create_gex_chart(result) -> go.Figure:
         height=500,
         hovermode='x unified',
         showlegend=False,
+        xaxis=dict(
+            tickformat="$,.0f",
+            gridcolor='#e0e0e0',
+            tickfont=dict(size=11)
+        ),
+        yaxis=dict(
+            tickformat="$,.0fM",
+            gridcolor='#e0e0e0',
+            tickfont=dict(size=11),
+            zeroline=True,
+            zerolinecolor='#333',
+            zerolinewidth=1
+        ),
+        margin=dict(l=60, r=40, t=80, b=60),
+        plot_bgcolor='rgba(250,250,250,0.8)'
+    )
+
+    return fig
+
+
+def create_breakdown_chart(result) -> go.Figure:
+    """Create stacked call/put bars similar to the Cheddar Flow layout."""
+
+    calls = (
+        result.df[result.df['Type'] == 'Call']
+        .groupby('Strike')['Net GEX ($M)']
+        .sum()
+    )
+    puts = (
+        result.df[result.df['Type'] == 'Put']
+        .groupby('Strike')['Net GEX ($M)']
+        .sum()
+    )
+
+    all_strikes = sorted(set(calls.index).union(set(puts.index)))
+    call_values = [calls.get(s, 0) for s in all_strikes]
+    put_values = [puts.get(s, 0) for s in all_strikes]
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        x=all_strikes,
+        y=call_values,
+        name='Call GEX',
+        marker_color='#1f77b4',
+        opacity=0.9,
+        hovertemplate='<b>Strike: $%{x:.0f}</b><br>Call GEX: $%{y:.1f}M<extra></extra>'
+    ))
+
+    fig.add_trace(go.Bar(
+        x=all_strikes,
+        y=put_values,
+        name='Put GEX',
+        marker_color='#ff7f0e',
+        opacity=0.9,
+        hovertemplate='<b>Strike: $%{x:.0f}</b><br>Put GEX: $%{y:.1f}M<extra></extra>'
+    ))
+
+    fig = _add_common_vertical_markers(fig, result)
+
+    fig.update_layout(
+        barmode='relative',
+        title=dict(
+            text=f"<b>{result.symbol}</b> Call vs Put Gamma Exposure", 
+            font=dict(size=20),
+            x=0.5,
+            xanchor='center'
+        ),
+        xaxis_title="Strike Price",
+        yaxis_title="GEX Contribution ($M)",
+        template="plotly_white",
+        height=500,
+        hovermode='x unified',
+        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
         xaxis=dict(
             tickformat="$,.0f",
             gridcolor='#e0e0e0',
@@ -398,9 +512,47 @@ def main():
 
         st.markdown("---")
 
+        # Snapshot similar to Cheddar Flow cards
+        total_call_gex = result.df[result.df['Type'] == 'Call']['Net GEX ($M)'].sum()
+        total_put_gex = result.df[result.df['Type'] == 'Put']['Net GEX ($M)'].sum()
+        net_at_spot = interpolate_gex_at_spot(result.strike_gex, result.spot_price)
+
+        snap_col1, snap_col2, snap_col3 = st.columns(3)
+        snap_col1.metric(
+            label="Call Gamma Exposure",
+            value=f"${total_call_gex:,.0f}M",
+            help="Sum of positive gamma from call open interest"
+        )
+        snap_col2.metric(
+            label="Put Gamma Exposure",
+            value=f"${total_put_gex:,.0f}M",
+            help="Sum of negative gamma from puts (normally negative)"
+        )
+        snap_col3.metric(
+            label="Net at Spot",
+            value=f"${net_at_spot:,.0f}M" if net_at_spot is not None else "N/A",
+            help=(
+                "Interpolated net gamma at the current spot price across nearby strikes. "
+                "Total Net GEX (above) remains the sum across the full strike range."
+            )
+        )
+
+        st.caption("These snapshots mirror the Cheddar Flow view by showing call/put contributions before drilling into the profile charts.")
+
         # Main chart
         st.subheader("📈 GEX Profile")
-        fig = create_gex_chart(result)
+        chart_mode = st.radio(
+            "Chart view",
+            options=["Net Gamma Exposure", "Call vs Put Breakdown"],
+            horizontal=True,
+            help="Switch to the call/put breakdown to mirror the Cheddar Flow style screenshot."
+        )
+
+        if chart_mode == "Net Gamma Exposure":
+            fig = create_gex_chart(result)
+        else:
+            fig = create_breakdown_chart(result)
+
         st.plotly_chart(fig, use_container_width=True)
 
         # Two columns for additional info
