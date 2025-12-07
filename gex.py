@@ -5,8 +5,9 @@ from decimal import Decimal
 import pandas as pd
 from dotenv import load_dotenv
 from tastytrade import Session, DXLinkStreamer
-from tastytrade.dxfeed import Greeks, Quote
+from tastytrade.dxfeed import Greeks, Quote, Summary
 from tastytrade.instruments import get_option_chain
+from tastytrade.market_data import a_get_market_data_by_type
 
 # Load environment variables
 load_dotenv()
@@ -131,60 +132,111 @@ async def calculate_gex_profile(symbol='SPY', max_dte=30):
             print("No options found after filtering.")
             return
 
+        # Step 4a: Fetch Initial Open Interest (Snapshot Fallback)
+        # The Streamer might be slow to send Summary events. We fetch valid OI from the API first.
+        # Limit is 100 per request.
+        print("Fetching initial Open Interest snapshot (fallback)...")
+        initial_oi_map = {} # Key: symbol (standard) -> open_interest (int)
+        
+        all_symbols = [opt.symbol for opt in all_options_to_monitor]
+        chunk_size = 100
+        
+        for i in range(0, len(all_symbols), chunk_size):
+            chunk = all_symbols[i:i + chunk_size]
+            try:
+                # API request for 100 symbols
+                # We use equity-option type implicitly by passing to options arg
+                market_data = await a_get_market_data_by_type(session, options=chunk)
+                for md in market_data:
+                    # md.open_interest is Decimal or None
+                    if md.open_interest is not None:
+                        initial_oi_map[md.symbol] = int(md.open_interest)
+            except Exception as e:
+                print(f"Warning: Failed to fetch initial OI for chunk {i}: {e}")
+                
+        print(f"Loaded initial OI for {len(initial_oi_map)} options.")
+
         # Prepare background listener
         greeks_events = []
+        summary_events = []
         
         async def listen_greeks():
             async for event in streamer.listen(Greeks):
                 greeks_events.append(event)
 
-        # Start listening BEFORE subscribing to ensure we catch the initial distinct messages
-        listener_task = asyncio.create_task(listen_greeks())
+        async def listen_summary():
+            async for event in streamer.listen(Summary):
+                summary_events.append(event)
+                
+        # Start listening BEFORE subscribing
+        t_greeks = asyncio.create_task(listen_greeks())
+        t_summary = asyncio.create_task(listen_summary())
 
-        # Step 5: Subscribe to Greeks (Batch)
+        # Step 5: Subscribe to Greeks and Summary (Batch)
         total_subs = len(all_options_to_monitor)
-        print(f"Subscribing to Greeks for {total_subs} filtered options...")
-        symbols_to_sub = [opt.symbol for opt in all_options_to_monitor]
-        await streamer.subscribe(Greeks, symbols_to_sub)
+        print(f"Subscribing to Greeks and Summary for {total_subs} filtered options...")
         
+        # Use streamer_symbol for subscription
+        symbols_to_sub = [opt.streamer_symbol for opt in all_options_to_monitor]
+        try:
+           await streamer.subscribe(Greeks, symbols_to_sub)
+           await streamer.subscribe(Summary, symbols_to_sub)
+        except Exception as e:
+           print(f"Subscription failed: {e}")
+
         # Wait for data
-        print("Waiting for Greeks data (5s)...")
+        print("Waiting for data (5s)...")
         await asyncio.sleep(5)
         
         # Stop listener
-        listener_task.cancel()
+        t_greeks.cancel()
+        t_summary.cancel()
         try:
-            await listener_task
+            await t_greeks
+            await t_summary
         except asyncio.CancelledError:
             pass
         
         # Map for O(1) lookup
         greek_map = {g.event_symbol: g for g in greeks_events}
-        print(f"Received Greeks for {len(greek_map)}/{total_subs} options.")
+        summary_map = {s.event_symbol: s for s in summary_events}
+        print(f"Received Greeks: {len(greek_map)}, Summary: {len(summary_map)}")
 
         # Step 6: Calcs
         data = []
         for opt in all_options_to_monitor:
-            matching_greek = greek_map.get(opt.symbol)
-            if not matching_greek:
-                continue
+            # Use streamer_symbol to lookup events
+            s_sym = opt.streamer_symbol
+            matching_greek = greek_map.get(s_sym)
+            matching_summary = summary_map.get(s_sym)
 
-            gamma = float(matching_greek.gamma) if matching_greek.gamma else 0.0
-            oi = int(opt.open_interest) if opt.open_interest else 0
+            # Gamma from Stream (default 0)
+            gamma = float(matching_greek.gamma) if matching_greek and matching_greek.gamma else 0.0
+            
+            # OI Priority:
+            # 1. Streamed Summary
+            # 2. Initial API Snapshot
+            # 3. 0
+            oi_source = "None"
+            oi = 0
+            
+            if matching_summary and matching_summary.open_interest:
+                 oi = int(matching_summary.open_interest)
+                 oi_source = "Stream"
+            elif opt.symbol in initial_oi_map:
+                 oi = initial_oi_map[opt.symbol]
+                 oi_source = "Snapshot"
+            
             strike = float(opt.strike_price)
             
             # GEX Formula
-            # Gamma * OI * 100 * Spot^2 * 0.01 / 1B or 1M?
-            # User used: oi * gamma * 100 * (spot**2) * 0.01 / 1_000_000 (Millions)
             raw_gex_m = (oi * gamma * 100 * (spot**2) * 0.01) / 1_000_000
             
-            # Sign Convention: Call Wall = Positive, Put Wall = Negative
             is_call = opt.option_type == 'C'
-            
             if is_call:
-                net_gex = raw_gex_m # Positive
+                net_gex = raw_gex_m 
             else:
-                net_gex = -raw_gex_m # Negative for Puts
+                net_gex = -raw_gex_m 
             
             data.append({
                 'Expiration': opt.expiration_date,
