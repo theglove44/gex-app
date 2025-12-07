@@ -3,6 +3,7 @@ import os
 from datetime import date, timedelta
 from decimal import Decimal
 import pandas as pd
+import matplotlib.pyplot as plt
 from dotenv import load_dotenv
 from tastytrade import Session, DXLinkStreamer
 from tastytrade.dxfeed import Greeks, Quote, Summary
@@ -273,6 +274,40 @@ async def calculate_gex_profile(symbol='SPY', max_dte=30):
             print(walls.to_string(index=False))
         else:
             print("\nNo major gamma walls (>$50M) found.")
+
+        # Step 7: Visualize
+        print("\nGenerating GEX Profile Chart...")
+        try:
+            plt.figure(figsize=(12, 6))
+            
+            # Color coding: Green for Call Walls (positive), Red for Put Walls (negative)
+            colors = ['green' if x >= 0 else 'red' for x in strike_gex['Net GEX ($M)']]
+            
+            plt.bar(strike_gex['Strike'], strike_gex['Net GEX ($M)'], color=colors, width=2.0, alpha=0.7)
+            
+            # Spot Price Line
+            plt.axvline(x=spot, color='blue', linestyle='--', label=f'Spot: {spot:.2f}')
+            
+            plt.title(f'{symbol} Net GEX Profile (0-{max_dte} DTE)', fontsize=14)
+            plt.xlabel('Strike Price')
+            plt.ylabel('Net GEX ($M)')
+            plt.grid(True, alpha=0.3)
+            plt.legend()
+            
+            # Annotate Major Levels
+            for _, row in walls.iterrows():
+                plt.text(row['Strike'], row['Net GEX ($M)'], 
+                         f"{int(row['Net GEX ($M)'])}", 
+                         ha='center', va='bottom' if row['Net GEX ($M)'] > 0 else 'top',
+                         fontsize=8, rotation=90)
+
+            # Save
+            plt.savefig('gex_profile.png')
+            print("Chart saved to 'gex_profile.png'")
+            plt.close()
+            
+        except Exception as e:
+            print(f"Failed to generate chart: {e}")
 
         # Optional: Save to CSV
         # df.to_csv('gex_profile.csv', index=False)
