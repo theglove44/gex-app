@@ -6,7 +6,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from tastytrade import Session, DXLinkStreamer
 from tastytrade.dxfeed import Greeks, Quote
-from tastytrade.instruments import get_option_chain, get_option_expirations
+from tastytrade.instruments import get_option_chain
 
 # Load environment variables
 load_dotenv()
@@ -17,10 +17,28 @@ REFRESH_TOKEN = os.getenv('TT_REFRESH_TOKEN')
 async def get_spot_price(streamer, symbol):
     """Fetches the current spot price for the symbol."""
     await streamer.subscribe(Quote, [symbol])
-    quote_event = await streamer.get_event(Quote, symbol)
+    # Fix: get_event takes only the event type class, not the symbol in standard usage for single event wait
+    # wrapper. But let's check if we can wait for specific event.
+    # The SDK get_event(EventType) returns the next event of that type.
+    # Since we only subscribed to one, it should be fine.
+    quote_event = await streamer.get_event(Quote)
+    
+    # Debug: inspect fields
+    if quote_event:
+        print(f"Quote fields: {quote_event}")
+        # Depending on SDK, it might be bidPrice/askPrice/lastPrice
+        # In dxfeed, it is often just 'askPrice', 'bidPrice'. 'last' might not be standard.
+        # Let's try to infer or fallback.
+        
     # Return last price or reasonable default/ask/bid average
-    if quote_event and quote_event.last:
-        return float(quote_event.last)
+    if quote_event:
+        if hasattr(quote_event, 'last_price') and quote_event.last_price:
+             return float(quote_event.last_price)
+             
+        # Fallback to mid
+        if hasattr(quote_event, 'ask_price') and hasattr(quote_event, 'bid_price') and quote_event.ask_price and quote_event.bid_price:
+             return (float(quote_event.ask_price) + float(quote_event.bid_price)) / 2.0
+             
     return None
 
 async def calculate_gex_profile(symbol='SPY', max_dte=30):
@@ -48,28 +66,34 @@ async def calculate_gex_profile(symbol='SPY', max_dte=30):
         print(f"Spot Price: {spot}")
 
         # Step 3: Get Valid Expirations (0-30 DTE)
-        print("Fetching expirations...")
+        print("Fetching expirations and chain...")
+        # Optimization: get_option_chain fetches everything we need.
         try:
-            all_exps = get_option_expirations(session, symbol)
+            # Returns dict: {date: [Option, ...]}
+            full_chain = get_option_chain(session, symbol)
         except Exception as e:
-            print(f"Failed to fetch expirations: {e}")
+            print(f"Failed to fetch option chain: {e}")
+            return
+
+        if not full_chain:
+            print("No chain data returned.")
             return
 
         today = date.today()
+        # Filter keys (expirations)
         valid_exps = [
-            d for d in all_exps 
+            d for d in full_chain.keys()
             if 0 <= (d - today).days <= max_dte
         ]
         
         if not valid_exps:
             print(f"No expirations found within {max_dte} days.")
             return
-
+            
+        valid_exps.sort()
         print(f"Found {len(valid_exps)} Expirations: {valid_exps[0]} to {valid_exps[-1]}")
 
-        # Step 4: Fetch Chains & Filter Strikes
-        # "Batching": Collect all subscriptions first to do one big subscribe (or subscribe per expiry if memory constrained, but list is better for streamer)
-        
+        # Step 4: Filter Strikes and Collect Options
         all_options_to_monitor = [] # List of Option objects
         # Define filter bounds (ATM +/- 20%)
         lower_bound = spot * 0.80
@@ -79,41 +103,50 @@ async def calculate_gex_profile(symbol='SPY', max_dte=30):
 
         for exp_date in valid_exps:
             try:
-                # Fetch chain for date
-                # Optimize: get_option_chain is a REST call
-                chain = get_option_chain(session, symbol, expiration_date=exp_date)
+                # get_option_chain already gave us the list
+                options_list = full_chain[exp_date]
                 
                 # Filter Options
                 filtered_options = [
-                    opt for opt in chain.options
+                    opt for opt in options_list
                     if lower_bound <= float(opt.strike_price) <= upper_bound
                 ]
                 all_options_to_monitor.extend(filtered_options)
                 
             except Exception as e:
-                print(f"Error fetching chain for {exp_date}: {e}")
+                print(f"Error processing chain for {exp_date}: {e}")
                 continue
         
         if not all_options_to_monitor:
             print("No options found after filtering.")
             return
 
-        total_subs = len(all_options_to_monitor)
-        print(f"Subscribing to Greeks for {total_subs} filtered options...")
+        # Prepare background listener
+        greeks_events = []
+        
+        async def listen_greeks():
+            async for event in streamer.listen(Greeks):
+                greeks_events.append(event)
+
+        # Start listening BEFORE subscribing to ensure we catch the initial distinct messages
+        listener_task = asyncio.create_task(listen_greeks())
 
         # Step 5: Subscribe to Greeks (Batch)
-        # Tastytrade API handles batching internally, but we pass full list
-        # Extract symbols
+        total_subs = len(all_options_to_monitor)
+        print(f"Subscribing to Greeks for {total_subs} filtered options...")
         symbols_to_sub = [opt.symbol for opt in all_options_to_monitor]
-        
-        # Subscribe
         await streamer.subscribe(Greeks, symbols_to_sub)
         
-        # Fetch Events (using get_events with timeout)
-        # We need to wait enough time for the stream to populate.
-        # Ideally, we would loop until we have X% coverage, but specific timeout is safer for a script.
-        print("Waiting for Greeks data...")
-        greeks_events = await streamer.get_events(Greeks, timeout=5) # 5s timeout
+        # Wait for data
+        print("Waiting for Greeks data (5s)...")
+        await asyncio.sleep(5)
+        
+        # Stop listener
+        listener_task.cancel()
+        try:
+            await listener_task
+        except asyncio.CancelledError:
+            pass
         
         # Map for O(1) lookup
         greek_map = {g.event_symbol: g for g in greeks_events}
@@ -159,7 +192,6 @@ async def calculate_gex_profile(symbol='SPY', max_dte=30):
         df = pd.DataFrame(data)
         
         # Aggregation: Group by Strike to see "Gamma Walls" across all dates
-        # Or Group by Strike for Summary
         total_gex = df['Net GEX ($M)'].sum()
         
         print(f"\n=== GEX Profile (SPY, 0-{max_dte} DTE) ===")

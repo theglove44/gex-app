@@ -29,7 +29,7 @@ This project provides scripts to fetch option chain data, calculate GEX profiles
 3.  **Install dependencies:**
     *(Note: Ensure you have `dxlink`, `tastytrade-sdk` or equivalent libraries installed. If a requirements.txt exists, use that.)*
     ```bash
-    pip install pandas python-dotenv requests websockets
+    pip install pandas python-dotenv requests websockets tastytrade
     # Add other actual dependencies here based on your environment
     ```
 
