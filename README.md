@@ -27,10 +27,8 @@ This project provides scripts to fetch option chain data, calculate GEX profiles
     ```
 
 3.  **Install dependencies:**
-    *(Note: Ensure you have `dxlink`, `tastytrade-sdk` or equivalent libraries installed. If a requirements.txt exists, use that.)*
     ```bash
-    pip install pandas python-dotenv requests websockets
-    # Add other actual dependencies here based on your environment
+    pip install -r requirements.txt
     ```
 
 ## Configuration
@@ -49,7 +47,7 @@ This project provides scripts to fetch option chain data, calculate GEX profiles
 ## Usage
 
 ### Main GEX Calculation
-Run the main script to calculate GEX for a symbol (defaulting to SPX or as configured in the script):
+Run the main script to calculate GEX. The script currently defaults to monitoring **SPY** for the next 30 days.
 
 ```bash
 python gex.py
