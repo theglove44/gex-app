@@ -153,6 +153,30 @@ def create_gex_chart(result) -> go.Figure:
     return fig
 
 
+def validate_symbol(symbol: str) -> tuple[bool, str]:
+    """
+    Validate custom symbol input.
+
+    Returns:
+        (is_valid, error_message)
+    """
+    if not symbol:
+        return False, "Symbol cannot be empty"
+
+    # Remove whitespace
+    symbol = symbol.strip().upper()
+
+    # Check length (reasonable bounds)
+    if len(symbol) < 1 or len(symbol) > 10:
+        return False, "Symbol must be 1-10 characters"
+
+    # Check alphanumeric only
+    if not symbol.replace('.', '').replace('-', '').isalnum():
+        return False, "Symbol must contain only letters, numbers, dots, and dashes"
+
+    return True, ""
+
+
 def create_heatmap_by_expiration(result) -> go.Figure:
     """Create a heatmap showing GEX by strike and expiration."""
     df = result.df
@@ -213,11 +237,11 @@ def main():
     if not client_secret or not refresh_token:
         st.error("⚠️ **Missing Credentials**")
         st.markdown("""
-        Please set your Tastytrade credentials in a `.env` file:
-        ```
-        TT_CLIENT_SECRET=your_client_secret
-        TT_REFRESH_TOKEN=your_refresh_token
-        ```
+        Please configure your Tastytrade API credentials as environment variables:
+        - `TT_CLIENT_SECRET`
+        - `TT_REFRESH_TOKEN`
+
+        For more information, see the [Tastytrade API documentation](https://tastytrade-api-js.readthedocs.io/).
         """)
         st.stop()
 
@@ -240,7 +264,11 @@ def main():
             help="Enter any optionable symbol"
         )
         if custom_symbol:
-            symbol = custom_symbol.upper()
+            is_valid, error_msg = validate_symbol(custom_symbol)
+            if not is_valid:
+                st.error(f"Invalid symbol: {error_msg}")
+                st.stop()
+            symbol = custom_symbol.strip().upper()
 
         st.markdown("---")
 

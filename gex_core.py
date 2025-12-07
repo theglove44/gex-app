@@ -125,7 +125,7 @@ async def calculate_gex_profile(
             max_dte=max_dte, strike_range=(0, 0), df=pd.DataFrame(),
             strike_gex=pd.DataFrame(), major_levels=pd.DataFrame(),
             call_wall=None, put_wall=None,
-            error="Missing credentials. Set TT_CLIENT_SECRET and TT_REFRESH_TOKEN in .env"
+            error="Missing API credentials. Please configure TT_CLIENT_SECRET and TT_REFRESH_TOKEN"
         )
 
     # Authenticate
