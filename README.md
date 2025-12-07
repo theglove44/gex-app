@@ -8,7 +8,7 @@ This project provides scripts to fetch option chain data, calculate GEX profiles
 
 ## Prerequisites
 
-- Python 3.8+
+- Python 3.10+ (required by the tastytrade SDK)
 - A Tastytrade account (for API access).
 - A valid Tastytrade refresh token and client secret.
 
