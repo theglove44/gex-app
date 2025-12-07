@@ -67,6 +67,27 @@ python gex.py
     python probe_instruments.py
     ```
 
+## Testing / Smoke checks
+
+Use these quick checks to verify your environment before running the Streamlit dashboard or the main calculator:
+
+1. **Confirm Python version** (must be 3.10+):
+    ```bash
+    python --version
+    ```
+
+2. **Validate tastytrade SDK imports** using the provided helper (ensures the required modules are available in your environment):
+    ```bash
+    python check_sdk.py
+    ```
+
+3. **Run the Streamlit app locally** to confirm the dashboard loads:
+    ```bash
+    streamlit run streamlit_app.py
+    ```
+
+If step 1 reports a version lower than 3.10, install a newer Python interpreter and recreate your virtual environment. If step 2 fails, reinstall dependencies with `pip install -r requirements.txt`.
+
 ## Disclaimer
 
 This software is for educational purposes only. Do not use it as the sole basis for investment decisions.
