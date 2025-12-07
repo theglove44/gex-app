@@ -8,7 +8,7 @@ This project provides scripts to fetch option chain data, calculate GEX profiles
 
 ## Prerequisites
 
-- Python 3.8+
+- Python 3.10+ (required by the tastytrade SDK)
 - A Tastytrade account (for API access).
 - A valid Tastytrade refresh token and client secret.
 
@@ -66,6 +66,27 @@ python gex.py
     ```bash
     python probe_instruments.py
     ```
+
+## Testing / Smoke checks
+
+Use these quick checks to verify your environment before running the Streamlit dashboard or the main calculator:
+
+1. **Confirm Python version** (must be 3.10+):
+    ```bash
+    python --version
+    ```
+
+2. **Validate tastytrade SDK imports** using the provided helper (ensures the required modules are available in your environment):
+    ```bash
+    python check_sdk.py
+    ```
+
+3. **Run the Streamlit app locally** to confirm the dashboard loads:
+    ```bash
+    streamlit run streamlit_app.py
+    ```
+
+If step 1 reports a version lower than 3.10, install a newer Python interpreter and recreate your virtual environment. If step 2 fails, reinstall dependencies with `pip install -r requirements.txt`.
 
 ## Disclaimer
 

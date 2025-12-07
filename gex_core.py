@@ -3,6 +3,7 @@ Core GEX (Gamma Exposure) calculation module.
 Provides reusable functions for calculating GEX profiles using Tastytrade API.
 """
 
+import sys
 import asyncio
 import os
 from datetime import date
@@ -10,6 +11,16 @@ from dataclasses import dataclass
 from typing import Optional
 import pandas as pd
 from dotenv import load_dotenv
+
+# The tastytrade SDK uses Python 3.10+ union type syntax (e.g., `date | None`).
+# Provide a clear error before importing it on older interpreters to avoid
+# cryptic TypeError messages during import.
+if sys.version_info < (3, 10):
+    raise RuntimeError(
+        "Python 3.10 or later is required because the tastytrade SDK relies "
+        "on 3.10+ typing features. Please upgrade your interpreter."
+    )
+
 from tastytrade import Session, DXLinkStreamer
 from tastytrade.dxfeed import Greeks, Quote, Summary
 from tastytrade.instruments import get_option_chain
