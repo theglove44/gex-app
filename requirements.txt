@@ -3,5 +3,8 @@ python-dotenv
 tastytrade
 requests
 websockets
-
 matplotlib
+
+# Web app dependencies
+streamlit
+plotly
