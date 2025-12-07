@@ -66,34 +66,35 @@ async def calculate_gex_profile(symbol='SPY', max_dte=30):
         print(f"Spot Price: {spot}")
 
         # Step 3: Get Valid Expirations (0-30 DTE)
+        # Step 3: Get Valid Expirations (0-30 DTE)
         print("Fetching expirations and chain...")
-        # Optimization: get_option_chain fetches everything we need.
         try:
-            # Returns dict: {date: [Option, ...]}
-            full_chain = get_option_chain(session, symbol)
+            # Returns dict: {date: [Option, ...]} OR OptionChain object with .options list
+            chain_result = get_option_chain(session, symbol)
         except Exception as e:
             print(f"Failed to fetch option chain: {e}")
             return
 
-        if not full_chain:
+        if not chain_result:
             print("No chain data returned.")
             return
 
-        today = date.today()
-        # Filter keys (expirations)
-        valid_exps = [
-            d for d in full_chain.keys()
-            if 0 <= (d - today).days <= max_dte
-        ]
-        
-        if not valid_exps:
-            print(f"No expirations found within {max_dte} days.")
+        # Normalize to list of options
+        all_options_raw = []
+        if hasattr(chain_result, 'options'):
+            # Handling object return (as per PR feedback)
+            all_options_raw = list(chain_result.options)
+        elif isinstance(chain_result, dict):
+            # Handling dict return (current local SDK)
+            for opts in chain_result.values():
+                all_options_raw.extend(opts)
+        else:
+            print(f"Unknown chain result type: {type(chain_result)}")
             return
-            
-        valid_exps.sort()
-        print(f"Found {len(valid_exps)} Expirations: {valid_exps[0]} to {valid_exps[-1]}")
 
-        # Step 4: Filter Strikes and Collect Options
+        today = date.today()
+        
+        # Step 4: Filter Strings and Collect Options
         all_options_to_monitor = [] # List of Option objects
         # Define filter bounds (ATM +/- 20%)
         lower_bound = spot * 0.80
@@ -101,21 +102,30 @@ async def calculate_gex_profile(symbol='SPY', max_dte=30):
         
         print(f"Filtering Strikes: {lower_bound:.2f} - {upper_bound:.2f}")
 
-        for exp_date in valid_exps:
-            try:
-                # get_option_chain already gave us the list
-                options_list = full_chain[exp_date]
-                
-                # Filter Options
-                filtered_options = [
-                    opt for opt in options_list
-                    if lower_bound <= float(opt.strike_price) <= upper_bound
-                ]
-                all_options_to_monitor.extend(filtered_options)
-                
-            except Exception as e:
-                print(f"Error processing chain for {exp_date}: {e}")
+        # Unique expirations for reporting
+        valid_exps = set()
+
+        for opt in all_options_raw:
+            # Check DTE
+            days_to_exp = (opt.expiration_date - today).days
+            if not (0 <= days_to_exp <= max_dte):
                 continue
+                
+            # Check Strike
+            if not (lower_bound <= float(opt.strike_price) <= upper_bound):
+                 continue
+            
+            all_options_to_monitor.append(opt)
+            valid_exps.add(opt.expiration_date)
+
+        sorted_exps = sorted(list(valid_exps))
+        
+        if not sorted_exps:
+            print(f"No expirations found within {max_dte} days with filtered strikes.")
+            return
+
+        print(f"Found {len(sorted_exps)} Expirations: {sorted_exps[0]} to {sorted_exps[-1]}")
+        print(f"Monitoring {len(all_options_to_monitor)} options.")
         
         if not all_options_to_monitor:
             print("No options found after filtering.")
