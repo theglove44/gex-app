@@ -8,7 +8,7 @@ GEX Tool is a Python application for calculating Gamma Exposure (GEX) profiles u
 
 ## Tech Stack
 
-- **Python 3.8+** - Core language
+- **Python 3.10+** - Core language (required by tastytrade SDK)
 - **tastytrade SDK** - API authentication and dxLink streaming
 - **pandas** - Data manipulation and aggregation
 - **matplotlib** - Chart generation

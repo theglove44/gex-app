@@ -1,6 +1,7 @@
+# Requires Python 3.10+ (tastytrade SDK uses union type syntax)
 pandas
 python-dotenv
-tastytrade
+tastytrade>=8.0
 requests
 websockets
 matplotlib
