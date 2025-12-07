@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from tastytrade import Session, DXLinkStreamer
 from tastytrade.dxfeed import Greeks, Quote, Summary
 from tastytrade.instruments import get_option_chain
+from tastytrade.market_data import a_get_market_data_by_type
 
 # Load environment variables
 load_dotenv()
@@ -131,6 +132,30 @@ async def calculate_gex_profile(symbol='SPY', max_dte=30):
             print("No options found after filtering.")
             return
 
+        # Step 4a: Fetch Initial Open Interest (Snapshot Fallback)
+        # The Streamer might be slow to send Summary events. We fetch valid OI from the API first.
+        # Limit is 100 per request.
+        print("Fetching initial Open Interest snapshot (fallback)...")
+        initial_oi_map = {} # Key: symbol (standard) -> open_interest (int)
+        
+        all_symbols = [opt.symbol for opt in all_options_to_monitor]
+        chunk_size = 100
+        
+        for i in range(0, len(all_symbols), chunk_size):
+            chunk = all_symbols[i:i + chunk_size]
+            try:
+                # API request for 100 symbols
+                # We use equity-option type implicitly by passing to options arg
+                market_data = await a_get_market_data_by_type(session, options=chunk)
+                for md in market_data:
+                    # md.open_interest is Decimal or None
+                    if md.open_interest is not None:
+                        initial_oi_map[md.symbol] = int(md.open_interest)
+            except Exception as e:
+                print(f"Warning: Failed to fetch initial OI for chunk {i}: {e}")
+                
+        print(f"Loaded initial OI for {len(initial_oi_map)} options.")
+
         # Prepare background listener
         greeks_events = []
         summary_events = []
@@ -153,9 +178,12 @@ async def calculate_gex_profile(symbol='SPY', max_dte=30):
         
         # Use streamer_symbol for subscription
         symbols_to_sub = [opt.streamer_symbol for opt in all_options_to_monitor]
-        await streamer.subscribe(Greeks, symbols_to_sub)
-        await streamer.subscribe(Summary, symbols_to_sub)
-        
+        try:
+           await streamer.subscribe(Greeks, symbols_to_sub)
+           await streamer.subscribe(Summary, symbols_to_sub)
+        except Exception as e:
+           print(f"Subscription failed: {e}")
+
         # Wait for data
         print("Waiting for data (5s)...")
         await asyncio.sleep(5)
@@ -177,17 +205,27 @@ async def calculate_gex_profile(symbol='SPY', max_dte=30):
         # Step 6: Calcs
         data = []
         for opt in all_options_to_monitor:
-            # Use streamer_symbol to lookup
+            # Use streamer_symbol to lookup events
             s_sym = opt.streamer_symbol
             matching_greek = greek_map.get(s_sym)
             matching_summary = summary_map.get(s_sym)
 
-            # We need at least Gamma and OI. 
-            # If Gamma is missing, assume 0. If OI is missing, assume 0.
-            # But usually we want both to be present for meaningful GEX.
-            
+            # Gamma from Stream (default 0)
             gamma = float(matching_greek.gamma) if matching_greek and matching_greek.gamma else 0.0
-            oi = int(matching_summary.open_interest) if matching_summary and matching_summary.open_interest else 0
+            
+            # OI Priority:
+            # 1. Streamed Summary
+            # 2. Initial API Snapshot
+            # 3. 0
+            oi_source = "None"
+            oi = 0
+            
+            if matching_summary and matching_summary.open_interest:
+                 oi = int(matching_summary.open_interest)
+                 oi_source = "Stream"
+            elif opt.symbol in initial_oi_map:
+                 oi = initial_oi_map[opt.symbol]
+                 oi_source = "Snapshot"
             
             strike = float(opt.strike_price)
             
