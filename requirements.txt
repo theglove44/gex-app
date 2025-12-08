@@ -7,6 +7,7 @@ websockets
 matplotlib
 
 # Web app dependencies
-streamlit
+# Dark theme CSS tested with Streamlit 1.40.0 (see VISUAL_TESTING.md for compatibility notes)
+streamlit>=1.40.0
 plotly
 pytest

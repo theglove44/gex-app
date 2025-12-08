@@ -88,6 +88,29 @@ Use these quick checks to verify your environment before running the Streamlit d
 
 If step 1 reports a version lower than 3.10, install a newer Python interpreter and recreate your virtual environment. If step 2 fails, reinstall dependencies with `pip install -r requirements.txt`.
 
+## Browser Compatibility
+
+The GEX Tool dashboard uses modern CSS features for its dark theme and glassmorphism effects. For the best experience, use one of these browsers:
+
+### Fully Supported
+- **Chrome/Edge 76+** - Full support for all features including backdrop-filter
+- **Firefox 103+** - Full support for all features including backdrop-filter
+- **Safari 9+** - Full support with -webkit prefix for backdrop-filter
+
+### Limited Support
+- **Older browsers** - Basic functionality will work, but glassmorphism effects will fall back to solid backgrounds
+- Browsers without backdrop-filter support will use semi-transparent solid backgrounds instead of blur effects
+
+### Known Issues
+- **Internet Explorer** - Not supported (use a modern browser)
+- **Firefox < 103** - Glassmorphism effects may not render; enable `layout.css.backdrop-filter.enabled` in `about:config`
+
+### Testing Your Browser
+The dashboard will automatically detect your browser capabilities and apply appropriate fallbacks. If you experience visual issues:
+1. Ensure your browser is up to date
+2. Check that hardware acceleration is enabled in browser settings
+3. Try clearing your browser cache
+
 ## Disclaimer
 
 This software is for educational purposes only. Do not use it as the sole basis for investment decisions.
