@@ -444,7 +444,143 @@ def create_breakdown_chart(result) -> go.Figure:
     return fig
 
 
+
+def render_gex_table(result) -> str:
+    """Render the detailed GEX table with Cheddarflow-style visuals."""
+    # Group by Strike to get aggregates
+    df = result.df.copy()
+    
+    # Pre-calculate Call/Put specific columns to make summing easier
+    df['Call GEX'] = df.apply(lambda x: x['Net GEX ($M)'] if x['Type'] == 'Call' else 0, axis=1)
+    df['Put GEX'] = df.apply(lambda x: x['Net GEX ($M)'] if x['Type'] == 'Put' else 0, axis=1)
+    df['Call OI'] = df.apply(lambda x: x['OI'] if x['Type'] == 'Call' else 0, axis=1)
+    df['Put OI'] = df.apply(lambda x: x['OI'] if x['Type'] == 'Put' else 0, axis=1)
+    
+    agg = df.groupby('Strike').agg({
+        'Net GEX ($M)': 'sum',
+        'Call GEX': 'sum',
+        'Put GEX': 'sum',
+        'Call OI': 'sum',
+        'Put OI': 'sum',
+        'OI': 'sum'
+    }).rename(columns={'Net GEX ($M)': 'Net GEX', 'OI': 'Total OI'})
+    
+    # Filter for strikes around spot (custom visual range)
+    # We want roughly +/- 15 strikes from spot to keep it focused like the screenshot
+    spot_price = result.spot_price
+    strikes = sorted(agg.index.unique())
+    
+    # Find index closest to spot
+    closest_idx = min(range(len(strikes)), key=lambda i: abs(strikes[i] - spot_price))
+    
+    # Slice range
+    start_idx = max(0, closest_idx - 12)
+    end_idx = min(len(strikes), closest_idx + 13)
+    
+    relevant_strikes = strikes[start_idx:end_idx]
+    agg = agg.loc[relevant_strikes]
+    agg = agg.sort_index(ascending=False) # Highest strike first
+    
+    # Max values for bar scaling
+    max_net = max(agg['Net GEX'].abs().max(), 1)
+    
+    html = '<div class="gex-table-container"><table class="gex-table">'
+    html += '''
+    <thead>
+        <tr class="gex-header">
+            <th class="th-strike">Strike</th>
+            <th class="th-viz"></th> <!-- Visual Bar Column -->
+            <th class="th-net">Net GEX</th>
+            <th class="th-call">Call GEX</th>
+            <th class="th-put">Put GEX</th>
+            <th class="th-oi">Call OI</th>
+            <th class="th-oi">Put OI</th>
+            <th class="th-oi">Total OI</th>
+        </tr>
+    </thead>
+    <tbody>
+    '''
+    
+    spot_inserted = False
+    
+    # helper for formatting
+    def fmt_curr(x): return f"{x:,.1f}M"
+    def fmt_int(x): return f"{x:,}"
+    
+    for strike, row in agg.iterrows():
+        # Insert spot row if we just passed the spot price
+        if not spot_inserted and strike < spot_price:
+            html += f'''
+            <tr class="spot-row">
+                <td class="gex-cell-strike">
+                    {spot_price:.2f}
+                    <span class="spot-label">Spot Price</span>
+                </td>
+                <td colspan="7"></td>
+            </tr>
+            '''
+            spot_inserted = True
+            
+        net = row['Net GEX']
+        call = row['Call GEX']
+        put = row['Put GEX']
+        c_oi = int(row['Call OI'])
+        p_oi = int(row['Put OI'])
+        t_oi = int(row['Total OI'])
+        
+        # Bar chart generation (Split Axis)
+        pct = min(abs(net) / max_net * 100, 100)
+        width_style = f"width: {pct}%;"
+        
+        # Determine which side of the axis the bar goes
+        # Negative (Red) -> Left side, aligned right
+        # Positive (Green) -> Right side, aligned left
+        
+        left_bar = ""
+        right_bar = ""
+        
+        if net < 0:
+            left_bar = f'<div class="gex-bar bar-neg" style="{width_style}"></div>'
+        else:
+            right_bar = f'<div class="gex-bar bar-pos" style="{width_style}"></div>'
+        
+        # The Viz cell
+        viz_html = f'''
+        <div class="viz-split-container">
+            <div class="viz-left">{left_bar}</div>
+            <div class="viz-axis"></div>
+            <div class="viz-right">{right_bar}</div>
+        </div>
+        '''
+
+        # Wall labels
+        strike_label = f"{strike:.2f}"
+        if result.call_wall and strike == result.call_wall:
+            strike_label += ' <span class="wall-label call-wall-label">CW</span>'
+        if result.put_wall and strike == result.put_wall:
+            strike_label += ' <span class="wall-label put-wall-label">PW</span>'
+            
+        net_class = "metric-value " + ("positive" if net >= 0 else "negative")
+
+        html += f'''
+        <tr class="gex-row">
+            <td class="gex-cell gex-cell-strike">{strike_label}</td>
+            <td class="gex-cell gex-cell-viz">{viz_html}</td>
+            <td class="gex-cell {net_class}">{fmt_curr(net)}</td>
+            <td class="gex-cell text-muted">{fmt_curr(call)}</td>
+            <td class="gex-cell text-muted">{fmt_curr(put)}</td>
+            <td class="gex-cell text-muted">{fmt_int(c_oi)}</td>
+            <td class="gex-cell text-muted">{fmt_int(p_oi)}</td>
+            <td class="gex-cell text-muted">{fmt_int(t_oi)}</td>
+        </tr>
+        '''
+        
+    html += '</tbody></table></div>'
+    return html
+
+
 def validate_symbol(symbol: str) -> tuple[bool, str]:
+
     """
     Validate custom symbol input.
 
@@ -468,14 +604,14 @@ def validate_symbol(symbol: str) -> tuple[bool, str]:
     return True, ""
 
 
-def create_heatmap_by_expiration(result) -> go.Figure:
-    """Create a heatmap showing GEX by strike and expiration with dark theme."""
-    df = result.df
+def render_gex_heatmap(result) -> str:
+    """Render a custom HTML heatmap matching the Cheddarflow style."""
+    df = result.df.copy()
 
     if df.empty:
-        return None
+        return ""
 
-    # Pivot table: strikes as rows, expirations as columns
+    # Pivot data: index=Strike, columns=Expiration, values=Net GEX
     pivot = df.pivot_table(
         values='Net GEX ($M)',
         index='Strike',
@@ -484,70 +620,95 @@ def create_heatmap_by_expiration(result) -> go.Figure:
         fill_value=0
     )
 
-    # Sort by strike
+    # Sort expirations (columns) and strikes (rows desc)
     pivot = pivot.sort_index(ascending=False)
 
-    # Custom colorscale for dark theme - vibrant neon colors
-    colorscale = [
-        [0.0, '#ff3366'],       # Bright red/pink for most negative
-        [0.25, '#cc2952'],      # Darker red
-        [0.45, COLORS['bg_elevated']],  # Dark gray near zero
-        [0.5, COLORS['bg_card']],       # Dark at zero
-        [0.55, COLORS['bg_elevated']],  # Dark gray near zero
-        [0.75, '#00cc6a'],      # Darker green
-        [1.0, '#00ff88']        # Bright green for most positive
-    ]
-
-    fig = go.Figure(data=go.Heatmap(
-        z=pivot.values,
-        x=[str(d) for d in pivot.columns],
-        y=[f"${s:.0f}" for s in pivot.index],
-        colorscale=colorscale,
-        zmid=0,
-        hovertemplate=(
-            '<b>Strike: %{y}</b><br>'
-            'Expiration: %{x}<br>'
-            'GEX: <b>$%{z:+.1f}M</b>'
-            '<extra></extra>'
-        ),
-        colorbar=dict(
-            title=dict(
-                text='GEX ($M)',
-                font=dict(color=COLORS['text_secondary'], size=11)
-            ),
-            tickfont=dict(color=COLORS['text_secondary'], size=10),
-            bgcolor='rgba(0,0,0,0)',
-            borderwidth=0,
-            tickformat='$,.0f',
-            ticksuffix='M'
-        )
-    ))
-
-    dark_layout = _get_dark_layout()
+    # Filter strikes around spot to keep it focused
+    spot_price = result.spot_price
+    strikes = sorted(pivot.index)
     
-    # Merge specific axis overrides into the layout dict directly
-    if 'xaxis' not in dark_layout: dark_layout['xaxis'] = {}
-    dark_layout['xaxis'].update(dict(
-        tickangle=45,
-        side='bottom'
-    ))
+    # Find closest strike index
+    closest_idx = 0
+    if strikes:
+        closest_idx = min(range(len(strikes)), key=lambda i: abs(strikes[i] - spot_price))
 
-    fig.update_layout(
-        **dark_layout,
-        title=dict(
-            text=(
-                f'<span style="font-size:16px;font-weight:600">'
-                f'GEX by Strike & Expiration</span>'
-            ),
-            x=0.5,
-            xanchor='center'
-        ),
-        xaxis_title="Expiration Date",
-        yaxis_title="Strike Price",
-        height=420
-    )
+    # Range of strikes to show (approx +/- 15 from spot)
+    start_idx = max(0, closest_idx - 15)
+    end_idx = min(len(strikes), closest_idx + 16)
 
-    return fig
+    relevant_strikes = strikes[start_idx:end_idx]
+    # Filter pivot and sort descending for display (high strikes at top)
+    pivot = pivot.loc[relevant_strikes].sort_index(ascending=False)
+
+    # Date formatting for headers "DEC 08"
+    # Columns are datetime.date objects
+    headers = [d.strftime('%b %d').upper() for d in pivot.columns]
+
+    # HTML Construction
+    html = '<div class="heatmap-container"><table class="heatmap-table">'
+
+    # Header Row
+    html += '<thead><tr class="heatmap-header"><th></th>'  # Empty corner cell
+    for h in headers:
+        html += f'<th>{h}</th>'
+    html += '</tr></thead><tbody>'
+
+    # Determine max value for opacity scaling
+    # We use a localized max for the visible range to ensure good contrast
+    if not pivot.empty:
+        max_val = pivot.abs().max().max()
+    else:
+        max_val = 1
+        
+    if max_val == 0: max_val = 1
+
+    for strike, row in pivot.iterrows():
+        # Highlight row if it is the closest strike to spot
+        row_class = ""
+        # Check if this strike is the absolute closest to spot
+        if abs(strike - spot_price) == min([abs(s - spot_price) for s in strikes]):
+             row_class = "heatmap-row-spot"
+
+        html += f'<tr class="{row_class}">'
+        html += f'<td class="heatmap-strike-cell">{strike:.0f}</td>'
+
+        for date_col in pivot.columns:
+            val = row[date_col]
+            abs_val = abs(val)
+
+            # Color logic
+            # Green (Pos), Red (Neg)
+            # Opacity based on magnitude relative to max
+            # Min opacity 0.1 so non-zero values are visible
+            alpha = min(abs_val / max_val * 0.9 + 0.1, 1.0) # Scale 0.1 to 1.0
+
+            bg_color = "transparent"
+            text_class = "cell-zero"
+            val_str = ""
+
+            if abs_val > 0.001: # Threshold to show
+                if val > 0:
+                    # Green: 0, 255, 136
+                    bg_color = f"rgba(0, 255, 136, {alpha:.2f})"
+                    text_class = "cell-pos"
+                else:
+                    # Red: 255, 51, 102
+                    bg_color = f"rgba(255, 51, 102, {alpha:.2f})"
+                    text_class = "cell-neg"
+
+                # Format Value
+                if abs_val >= 1:
+                    val_str = f"{val:.1f}M"
+                else:
+                    val_str = f"{val*1000:.0f}K"
+            
+            style = f'background-color: {bg_color};'
+            html += f'<td class="heatmap-cell {text_class}" style="{style}">{val_str}</td>'
+
+        html += '</tr>'
+
+    html += '</tbody></table></div>'
+    return html
 
 
 def render_metric_card(label: str, value: str, card_type: str = "neutral", subtitle: str = "") -> str:
@@ -808,28 +969,14 @@ def main():
                 "Interpolated"
             ), unsafe_allow_html=True)
 
-        # Main chart section
+        # Main GEX Table
         st.markdown(f'''
         <p class="section-header">Gamma Exposure Profile</p>
         ''', unsafe_allow_html=True)
 
-        chart_mode = st.radio(
-            "Chart view",
-            options=["Net Gamma Exposure", "Call vs Put Breakdown"],
-            horizontal=True,
-            label_visibility="collapsed"
-        )
+        gex_table_html = render_gex_table(result)
+        st.html(gex_table_html)
 
-        if chart_mode == "Net Gamma Exposure":
-            fig = create_gex_chart(result)
-        else:
-            fig = create_breakdown_chart(result)
-
-        st.plotly_chart(fig, use_container_width=True, config={
-            'displayModeBar': True,
-            'displaylogo': False,
-            'modeBarButtonsToRemove': ['lasso2d', 'select2d']
-        })
 
         # Two columns for additional info
         col_left, col_right = st.columns([1, 1])
@@ -873,14 +1020,11 @@ def main():
 
         with col_right:
             st.markdown(f'''
-            <p class="section-header">GEX by Expiration</p>
+            <p class="section-header">Net GEX Heatmap</p>
             ''', unsafe_allow_html=True)
 
-            heatmap_fig = create_heatmap_by_expiration(result)
-            if heatmap_fig:
-                st.plotly_chart(heatmap_fig, use_container_width=True, config={
-                    'displayModeBar': False
-                })
+            heatmap_html = render_gex_heatmap(result)
+            st.html(heatmap_html)
 
         # Expandable raw data section
         with st.expander("📋 View Raw Data"):
@@ -928,7 +1072,7 @@ def main():
 
     else:
         # Initial state - show welcome screen
-        st.markdown(f'''
+        st.html(f'''
         <div style="
             background: {COLORS['gradient_card']};
             backdrop-filter: blur(10px);
@@ -1003,7 +1147,7 @@ def main():
         <p style="text-align:center;color:{COLORS['text_muted']};margin-top:1rem;">
             Configure settings in the sidebar and click <b>Calculate GEX</b> to begin
         </p>
-        ''', unsafe_allow_html=True)
+        ''')
 
 
 if __name__ == "__main__":
