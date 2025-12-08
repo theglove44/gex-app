@@ -106,6 +106,38 @@ def _add_common_vertical_markers(fig: go.Figure, result):
     return fig
 
 
+def interpolate_gex_at_spot(strike_gex: pd.DataFrame, spot: float) -> float | None:
+    """Estimate net gamma at the current spot using linear interpolation between strikes."""
+
+    if strike_gex.empty:
+        return None
+
+    ordered = strike_gex.sort_values('Strike')
+    strikes = ordered['Strike'].values
+    gex_values = ordered['Net GEX ($M)'].values
+
+    # Exact strike match
+    for strike, gex_value in zip(strikes, gex_values):
+        if strike == spot:
+            return float(gex_value)
+
+    # Spot below/above bounds, clamp to nearest edge
+    if spot <= strikes[0]:
+        return float(gex_values[0])
+    if spot >= strikes[-1]:
+        return float(gex_values[-1])
+
+    # Linear interpolation between surrounding strikes
+    for i in range(len(strikes) - 1):
+        left_strike, right_strike = strikes[i], strikes[i + 1]
+        if left_strike <= spot <= right_strike:
+            left_gex, right_gex = gex_values[i], gex_values[i + 1]
+            slope = (right_gex - left_gex) / (right_strike - left_strike)
+            return float(left_gex + slope * (spot - left_strike))
+
+    return None
+
+
 def create_gex_chart(result) -> go.Figure:
     """Create an interactive Plotly bar chart for GEX profile."""
     df = result.strike_gex
@@ -483,6 +515,7 @@ def main():
         # Snapshot similar to Cheddar Flow cards
         total_call_gex = result.df[result.df['Type'] == 'Call']['Net GEX ($M)'].sum()
         total_put_gex = result.df[result.df['Type'] == 'Put']['Net GEX ($M)'].sum()
+        net_at_spot = interpolate_gex_at_spot(result.strike_gex, result.spot_price)
 
         snap_col1, snap_col2, snap_col3 = st.columns(3)
         snap_col1.metric(
@@ -497,8 +530,11 @@ def main():
         )
         snap_col3.metric(
             label="Net at Spot",
-            value=f"${result.total_gex:,.0f}M",
-            help="Net gamma across calls and puts at the current strikes"
+            value=f"${net_at_spot:,.0f}M" if net_at_spot is not None else "N/A",
+            help=(
+                "Interpolated net gamma at the current spot price across nearby strikes. "
+                "Total Net GEX (above) remains the sum across the full strike range."
+            )
         )
 
         st.caption("These snapshots mirror the Cheddar Flow view by showing call/put contributions before drilling into the profile charts.")
