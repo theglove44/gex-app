@@ -1,0 +1,249 @@
+/*
+ * GEX Tool - Dark Theme Stylesheet
+ * Last tested with Streamlit: 1.40.0 (Dec 2025)
+ *
+ * WARNING: This CSS uses Streamlit internal test IDs (data-testid) which are
+ * not part of the public API and may change in future versions.
+ * Always test theme compatibility after Streamlit upgrades.
+ *
+ * Browser Compatibility:
+ * - Chrome/Edge 76+ (backdrop-filter support)
+ * - Firefox 103+ (backdrop-filter support)
+ * - Safari 9+ (with -webkit prefix)
+ * - Older browsers will use fallback solid backgrounds
+ */
+
+/* === DARK THEME BASE === */
+.stApp {
+    background: linear-gradient(180deg, var(--bg-primary) 0%, #0a0f14 100%);
+}
+
+/* Main content area */
+.main .block-container {
+    background: transparent;
+    padding-top: 2rem;
+}
+
+/* Sidebar styling */
+[data-testid="stSidebar"] {
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--bg-elevated);
+}
+
+[data-testid="stSidebar"] .stMarkdown {
+    color: var(--text-primary);
+}
+
+/* Headers */
+.main-header {
+    font-size: 2.8rem;
+    font-weight: 800;
+    background: linear-gradient(90deg, var(--cyan) 0%, var(--purple) 50%, var(--magenta) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0;
+    letter-spacing: -0.02em;
+}
+
+.sub-header {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    font-weight: 400;
+}
+
+/* === GLASSMORPHISM METRIC CARDS === */
+[data-testid="stMetric"] {
+    background: var(--gradient-card);
+    background-color: rgba(33, 38, 45, 0.95); /* Fallback for older browsers */
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 1.25rem;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+[data-testid="stMetric"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(0,212,255,0.2);
+}
+
+[data-testid="stMetric"] label {
+    color: var(--text-secondary) !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+[data-testid="stMetric"] [data-testid="stMetricValue"] {
+    color: var(--text-primary) !important;
+    font-size: 1.8rem !important;
+    font-weight: 700 !important;
+}
+
+[data-testid="stMetric"] [data-testid="stMetricDelta"] {
+    color: var(--call-gex) !important;
+}
+
+/* === CUSTOM METRIC CARDS === */
+.metric-card {
+    background: var(--gradient-card);
+    background-color: rgba(33, 38, 45, 0.95); /* Fallback */
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+.metric-card.call {
+    border-left: 4px solid var(--call-gex);
+}
+
+.metric-card.put {
+    border-left: 4px solid var(--put-gex);
+}
+
+.metric-card.neutral {
+    border-left: 4px solid var(--cyan);
+}
+
+.metric-label {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.5rem;
+}
+
+.metric-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.metric-value.positive {
+    color: var(--call-gex);
+    text-shadow: 0 0 20px rgba(0,255,136,0.5);
+}
+
+.metric-value.negative {
+    color: var(--put-gex);
+    text-shadow: 0 0 20px rgba(255,51,102,0.5);
+}
+
+.metric-value.neutral {
+    color: var(--cyan);
+    text-shadow: 0 0 20px rgba(0,212,255,0.5);
+}
+
+/* === SECTION STYLING === */
+.section-header {
+    color: var(--text-primary);
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin: 2rem 0 1rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--bg-elevated);
+}
+
+/* === DATAFRAME STYLING === */
+[data-testid="stDataFrame"] {
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--bg-elevated);
+}
+
+/* === BUTTON STYLING === */
+.stButton > button {
+    background: linear-gradient(135deg, var(--cyan) 0%, var(--purple) 100%);
+    color: var(--bg-primary);
+    font-weight: 600;
+    border: none;
+    border-radius: 12px;
+    padding: 0.75rem 2rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0,212,255,0.3);
+}
+
+.stButton > button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(0,212,255,0.5);
+}
+
+/* === EXPANDER STYLING === */
+[data-testid="stExpander"] {
+    background: var(--bg-card);
+    border: 1px solid var(--bg-elevated);
+    border-radius: 12px;
+}
+
+[data-testid="stExpander"] summary {
+    color: var(--text-primary);
+}
+
+/* === SLIDER STYLING === */
+.stSlider > div > div {
+    background: var(--bg-elevated);
+}
+
+.stSlider > div > div > div {
+    background: linear-gradient(90deg, var(--cyan), var(--purple));
+}
+
+/* === RADIO BUTTONS === */
+.stRadio > div {
+    background: var(--bg-card);
+    border-radius: 12px;
+    padding: 0.5rem;
+}
+
+/* === INFO/WARNING BOXES === */
+.stAlert {
+    background: var(--bg-card);
+    border: 1px solid var(--bg-elevated);
+    border-radius: 12px;
+}
+
+/* === DIVIDERS === */
+hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--bg-elevated), transparent);
+    margin: 2rem 0;
+}
+
+/* === SELECTBOX === */
+.stSelectbox > div > div {
+    background: var(--bg-card);
+    border-color: var(--bg-elevated);
+}
+
+/* Text inputs */
+.stTextInput > div > div > input {
+    background: var(--bg-card);
+    border-color: var(--bg-elevated);
+    color: var(--text-primary);
+}
+
+/* Hide Streamlit branding */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+
+/* Glow effects for key elements */
+.glow-green {
+    box-shadow: 0 0 20px rgba(0,255,136,0.3);
+}
+
+.glow-red {
+    box-shadow: 0 0 20px rgba(255,51,102,0.3);
+}
+
+.glow-cyan {
+    box-shadow: 0 0 20px rgba(0,212,255,0.3);
+}

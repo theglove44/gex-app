@@ -50,243 +50,41 @@ COLORS = {
     'gradient_card': 'linear-gradient(135deg, rgba(0,212,255,0.1) 0%, rgba(191,90,242,0.1) 100%)',
 }
 
-# Custom CSS for dark theme
-st.markdown(f"""
-<style>
-    /* === DARK THEME BASE === */
-    .stApp {{
-        background: linear-gradient(180deg, {COLORS['bg_primary']} 0%, #0a0f14 100%);
-    }}
+# Load CSS from external file with version tracking
+# CSS last tested with Streamlit 1.40.0 (Dec 2025)
+try:
+    with open('assets/dark_theme.css', 'r') as f:
+        css_content = f.read()
 
-    /* Main content area */
-    .main .block-container {{
-        background: transparent;
-        padding-top: 2rem;
-    }}
+    # Inject CSS variables for dynamic color values
+    st.markdown(f"""
+    <style>
+        :root {{
+            --bg-primary: {COLORS['bg_primary']};
+            --bg-secondary: {COLORS['bg_secondary']};
+            --bg-card: {COLORS['bg_card']};
+            --bg-elevated: {COLORS['bg_elevated']};
+            --text-primary: {COLORS['text_primary']};
+            --text-secondary: {COLORS['text_secondary']};
+            --text-muted: {COLORS['text_muted']};
+            --cyan: {COLORS['cyan']};
+            --magenta: {COLORS['magenta']};
+            --lime: {COLORS['lime']};
+            --orange: {COLORS['orange']};
+            --purple: {COLORS['purple']};
+            --yellow: {COLORS['yellow']};
+            --call-gex: {COLORS['call_gex']};
+            --put-gex: {COLORS['put_gex']};
+            --spot-line: {COLORS['spot_line']};
+            --zero-gamma: {COLORS['zero_gamma']};
+            --gradient-card: {COLORS['gradient_card']};
+        }}
 
-    /* Sidebar styling */
-    [data-testid="stSidebar"] {{
-        background: {COLORS['bg_secondary']};
-        border-right: 1px solid {COLORS['bg_elevated']};
-    }}
-
-    [data-testid="stSidebar"] .stMarkdown {{
-        color: {COLORS['text_primary']};
-    }}
-
-    /* Headers */
-    .main-header {{
-        font-size: 2.8rem;
-        font-weight: 800;
-        background: linear-gradient(90deg, {COLORS['cyan']} 0%, {COLORS['purple']} 50%, {COLORS['magenta']} 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin-bottom: 0;
-        letter-spacing: -0.02em;
-    }}
-
-    .sub-header {{
-        font-size: 1.1rem;
-        color: {COLORS['text_secondary']};
-        margin-top: 0.25rem;
-        font-weight: 400;
-    }}
-
-    /* === GLASSMORPHISM METRIC CARDS === */
-    [data-testid="stMetric"] {{
-        background: {COLORS['gradient_card']};
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 16px;
-        padding: 1.25rem;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }}
-
-    [data-testid="stMetric"]:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 12px 40px rgba(0,212,255,0.2);
-    }}
-
-    [data-testid="stMetric"] label {{
-        color: {COLORS['text_secondary']} !important;
-        font-size: 0.85rem !important;
-        font-weight: 500 !important;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }}
-
-    [data-testid="stMetric"] [data-testid="stMetricValue"] {{
-        color: {COLORS['text_primary']} !important;
-        font-size: 1.8rem !important;
-        font-weight: 700 !important;
-    }}
-
-    [data-testid="stMetric"] [data-testid="stMetricDelta"] {{
-        color: {COLORS['call_gex']} !important;
-    }}
-
-    /* === CUSTOM METRIC CARDS === */
-    .metric-card {{
-        background: {COLORS['gradient_card']};
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 16px;
-        padding: 1.5rem;
-        text-align: center;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-    }}
-
-    .metric-card.call {{
-        border-left: 4px solid {COLORS['call_gex']};
-    }}
-
-    .metric-card.put {{
-        border-left: 4px solid {COLORS['put_gex']};
-    }}
-
-    .metric-card.neutral {{
-        border-left: 4px solid {COLORS['cyan']};
-    }}
-
-    .metric-label {{
-        color: {COLORS['text_secondary']};
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        margin-bottom: 0.5rem;
-    }}
-
-    .metric-value {{
-        font-size: 2rem;
-        font-weight: 700;
-        margin: 0;
-    }}
-
-    .metric-value.positive {{
-        color: {COLORS['call_gex']};
-        text-shadow: 0 0 20px rgba(0,255,136,0.5);
-    }}
-
-    .metric-value.negative {{
-        color: {COLORS['put_gex']};
-        text-shadow: 0 0 20px rgba(255,51,102,0.5);
-    }}
-
-    .metric-value.neutral {{
-        color: {COLORS['cyan']};
-        text-shadow: 0 0 20px rgba(0,212,255,0.5);
-    }}
-
-    /* === SECTION STYLING === */
-    .section-header {{
-        color: {COLORS['text_primary']};
-        font-size: 1.3rem;
-        font-weight: 600;
-        margin: 2rem 0 1rem 0;
-        padding-bottom: 0.5rem;
-        border-bottom: 2px solid {COLORS['bg_elevated']};
-    }}
-
-    /* === DATAFRAME STYLING === */
-    [data-testid="stDataFrame"] {{
-        background: {COLORS['bg_card']};
-        border-radius: 12px;
-        border: 1px solid {COLORS['bg_elevated']};
-    }}
-
-    /* === BUTTON STYLING === */
-    .stButton > button {{
-        background: linear-gradient(135deg, {COLORS['cyan']} 0%, {COLORS['purple']} 100%);
-        color: {COLORS['bg_primary']};
-        font-weight: 600;
-        border: none;
-        border-radius: 12px;
-        padding: 0.75rem 2rem;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(0,212,255,0.3);
-    }}
-
-    .stButton > button:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 6px 25px rgba(0,212,255,0.5);
-    }}
-
-    /* === EXPANDER STYLING === */
-    [data-testid="stExpander"] {{
-        background: {COLORS['bg_card']};
-        border: 1px solid {COLORS['bg_elevated']};
-        border-radius: 12px;
-    }}
-
-    [data-testid="stExpander"] summary {{
-        color: {COLORS['text_primary']};
-    }}
-
-    /* === SLIDER STYLING === */
-    .stSlider > div > div {{
-        background: {COLORS['bg_elevated']};
-    }}
-
-    .stSlider > div > div > div {{
-        background: linear-gradient(90deg, {COLORS['cyan']}, {COLORS['purple']});
-    }}
-
-    /* === RADIO BUTTONS === */
-    .stRadio > div {{
-        background: {COLORS['bg_card']};
-        border-radius: 12px;
-        padding: 0.5rem;
-    }}
-
-    /* === INFO/WARNING BOXES === */
-    .stAlert {{
-        background: {COLORS['bg_card']};
-        border: 1px solid {COLORS['bg_elevated']};
-        border-radius: 12px;
-    }}
-
-    /* === DIVIDERS === */
-    hr {{
-        border: none;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, {COLORS['bg_elevated']}, transparent);
-        margin: 2rem 0;
-    }}
-
-    /* === SELECTBOX === */
-    .stSelectbox > div > div {{
-        background: {COLORS['bg_card']};
-        border-color: {COLORS['bg_elevated']};
-    }}
-
-    /* Text inputs */
-    .stTextInput > div > div > input {{
-        background: {COLORS['bg_card']};
-        border-color: {COLORS['bg_elevated']};
-        color: {COLORS['text_primary']};
-    }}
-
-    /* Hide Streamlit branding */
-    #MainMenu {{visibility: hidden;}}
-    footer {{visibility: hidden;}}
-
-    /* Glow effects for key elements */
-    .glow-green {{
-        box-shadow: 0 0 20px rgba(0,255,136,0.3);
-    }}
-
-    .glow-red {{
-        box-shadow: 0 0 20px rgba(255,51,102,0.3);
-    }}
-
-    .glow-cyan {{
-        box-shadow: 0 0 20px rgba(0,212,255,0.3);
-    }}
-</style>
-""", unsafe_allow_html=True)
+        {css_content}
+    </style>
+    """, unsafe_allow_html=True)
+except FileNotFoundError:
+    st.warning("⚠️ Dark theme CSS file not found. Using default Streamlit theme.")
 
 
 def _get_dark_layout() -> dict:
