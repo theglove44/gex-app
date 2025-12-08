@@ -108,7 +108,8 @@ async def calculate_gex_profile(
     strike_range_pct: float = 0.20,
     major_level_threshold: float = 50.0,
     data_wait_seconds: float = 5.0,
-    progress_callback=None
+    progress_callback=None,
+    session: Optional[Session] = None
 ) -> GEXResult:
     """
     Calculate GEX profile for a given symbol.
@@ -128,29 +129,32 @@ async def calculate_gex_profile(
         if progress_callback:
             progress_callback(msg)
 
-    # Check credentials
-    client_secret, refresh_token = get_credentials()
-    if not client_secret or not refresh_token:
-        return GEXResult(
-            symbol=symbol, spot_price=0, total_gex=0, zero_gamma_level=None,
-            max_dte=max_dte, strike_range=(0, 0), df=pd.DataFrame(),
-            strike_gex=pd.DataFrame(), major_levels=pd.DataFrame(),
-            call_wall=None, put_wall=None,
-            error="Missing API credentials. Please configure TT_CLIENT_SECRET and TT_REFRESH_TOKEN"
-        )
+    # Authenticate (if no session provided)
+    if session:
+        log("Using existing session...")
+    else:
+        # Check credentials
+        client_secret, refresh_token = get_credentials()
+        if not client_secret or not refresh_token:
+            return GEXResult(
+                symbol=symbol, spot_price=0, total_gex=0, zero_gamma_level=None,
+                max_dte=max_dte, strike_range=(0, 0), df=pd.DataFrame(),
+                strike_gex=pd.DataFrame(), major_levels=pd.DataFrame(),
+                call_wall=None, put_wall=None,
+                error="Missing API credentials. Please configure TT_CLIENT_SECRET and TT_REFRESH_TOKEN"
+            )
 
-    # Authenticate
-    log("Authenticating with Tastytrade...")
-    try:
-        session = Session(client_secret, refresh_token)
-    except Exception as e:
-        return GEXResult(
-            symbol=symbol, spot_price=0, total_gex=0, zero_gamma_level=None,
-            max_dte=max_dte, strike_range=(0, 0), df=pd.DataFrame(),
-            strike_gex=pd.DataFrame(), major_levels=pd.DataFrame(),
-            call_wall=None, put_wall=None,
-            error=f"Authentication failed: {e}"
-        )
+        log("Authenticating with Tastytrade...")
+        try:
+            session = Session(client_secret, refresh_token)
+        except Exception as e:
+            return GEXResult(
+                symbol=symbol, spot_price=0, total_gex=0, zero_gamma_level=None,
+                max_dte=max_dte, strike_range=(0, 0), df=pd.DataFrame(),
+                strike_gex=pd.DataFrame(), major_levels=pd.DataFrame(),
+                call_wall=None, put_wall=None,
+                error=f"Authentication failed: {e}"
+            )
 
     log(f"Fetching data for {symbol}...")
 
@@ -364,12 +368,18 @@ def run_gex_calculation(
     symbol: str = 'SPY',
     max_dte: int = 30,
     strike_range_pct: float = 0.20,
-    progress_callback=None
+    major_level_threshold: float = 50.0,
+    data_wait_seconds: float = 5.0,
+    progress_callback=None,
+    session: Optional[Session] = None
 ) -> GEXResult:
     """Synchronous wrapper for calculate_gex_profile."""
     return asyncio.run(calculate_gex_profile(
         symbol=symbol,
         max_dte=max_dte,
         strike_range_pct=strike_range_pct,
-        progress_callback=progress_callback
+        major_level_threshold=major_level_threshold,
+        data_wait_seconds=data_wait_seconds,
+        progress_callback=progress_callback,
+        session=session
     ))

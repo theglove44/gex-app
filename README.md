@@ -1,6 +1,15 @@
 # GEX Tool
 
+![GEX Dashboard Screenshot](assets/dashboard_screenshot.png)
+
 A Python-based tool for calculating Gamma Exposure (GEX) using the Tastytrade API and dxFeed.
+
+## Features
+
+### Real-time Auto-Update
+The dashboard automatically refreshes data, keeping you in sync with market movements.
+
+![Auto-Update Demo](assets/auto_update_demo.webp)
 
 ## Overview
 

@@ -7,7 +7,8 @@ import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime
-from gex_core import run_gex_calculation, get_credentials
+from gex_core import run_gex_calculation, get_credentials, create_session
+import time
 
 # Page configuration
 st.set_page_config(
@@ -730,147 +731,161 @@ def render_metric_card(label: str, value: str, card_type: str = "neutral", subti
     """
 
 
-def main():
-    # Header with gradient text
-    st.markdown('''
-    <div style="text-align: center; padding: 1rem 0 0.5rem 0;">
-        <p class="main-header">GEX Tool</p>
-        <p class="sub-header">Real-Time Gamma Exposure Analysis</p>
-    </div>
-    ''', unsafe_allow_html=True)
-    st.markdown("---")
+import time
+from datetime import datetime
+import streamlit as st
 
-    # Check credentials
-    client_secret, refresh_token = get_credentials()
-    if not client_secret or not refresh_token:
-        st.error("⚠️ **Missing Credentials**")
-        st.markdown("""
-        Please configure your Tastytrade API credentials as environment variables:
-        - `TT_CLIENT_SECRET`
-        - `TT_REFRESH_TOKEN`
+# Assuming COLORS, create_session, run_gex_calculation, create_gex_chart, create_breakdown_chart,
+# render_gex_table, render_gex_heatmap are defined elsewhere in the file or imported.
+# For this edit, I will assume they are available in the scope.
 
-        For more information, see the [Tastytrade API documentation](https://tastytrade-api-js.readthedocs.io/).
-        """)
-        st.stop()
+@st.fragment
+def render_gex_section_manual(symbol, max_dte, strike_range_pct, major_threshold, data_wait, auto_update):
+    """
+    Manual rendering fragment (no auto-update).
+    """
+    _render_gex_content(symbol, max_dte, strike_range_pct, major_threshold, data_wait, auto_update)
 
-    # Sidebar controls
-    with st.sidebar:
-        st.markdown(f'''
-        <div style="text-align:center;padding:0.5rem 0 1rem 0;">
-            <span style="font-size:1.5rem;font-weight:700;color:{COLORS['text_primary']};">
-                Settings
-            </span>
-        </div>
-        ''', unsafe_allow_html=True)
 
-        # Symbol selection
-        st.markdown(f'<p style="color:{COLORS["text_secondary"]};font-size:0.8rem;margin-bottom:0.25rem;">SYMBOL</p>', unsafe_allow_html=True)
-        symbol = st.selectbox(
-            "Symbol",
-            options=["SPY", "QQQ", "IWM", "DIA", "AAPL", "TSLA", "NVDA", "AMD", "AMZN", "MSFT"],
-            index=0,
-            help="Select the underlying symbol to analyze",
-            label_visibility="collapsed"
-        )
+@st.fragment(run_every=60)
+def render_gex_section_auto(symbol, max_dte, strike_range_pct, major_threshold, data_wait, auto_update):
+    """
+    Auto-updating fragment (runs every 60s).
+    """
+    _render_gex_content(symbol, max_dte, strike_range_pct, major_threshold, data_wait, auto_update)
 
-        # Custom symbol input
-        custom_symbol = st.text_input(
-            "Or enter custom symbol",
-            placeholder="Enter custom symbol...",
-            help="Enter any optionable symbol",
-            label_visibility="collapsed"
-        )
-        if custom_symbol:
-            is_valid, error_msg = validate_symbol(custom_symbol)
-            if not is_valid:
-                st.error(f"Invalid symbol: {error_msg}")
+
+def _render_gex_content(symbol, max_dte, strike_range_pct, major_threshold, data_wait, auto_update):
+    """
+    Core GEX calculation and rendering logic.
+    """
+    # Create or reuse session
+    if 'tt_session' not in st.session_state or st.session_state.tt_session is None:
+        with st.spinner("Initializing Tastytrade session..."):
+            try:
+                # Assuming create_session() is defined elsewhere and handles credentials
+                st.session_state.tt_session = create_session()
+            except Exception as e:
+                st.error(f"Failed to initialize Tastytrade session: {e}")
                 st.stop()
-            symbol = custom_symbol.strip().upper()
+            
+    # Auto-update logic (just visual indicator, the loop is handled by the fragment decorator)
+    if auto_update:
+        st.markdown(f"""
+            <div style="font-size:0.8rem;color:{COLORS['text_muted']};margin-bottom:1rem;">
+                ⚡ Auto-updating every 60s
+            </div>
+        """, unsafe_allow_html=True)
 
-        st.markdown("<br>", unsafe_allow_html=True)
+    # Use a session state variable to track if we should be calculating
+    # This helps in triggering the first run or re-runs when inputs change
+    if 'last_run_params' not in st.session_state:
+        st.session_state.last_run_params = {}
+    
+    current_params = {
+        'symbol': symbol,
+        'max_dte': max_dte,
+        'strike_range_pct': strike_range_pct,
+        'major_threshold': major_threshold,
+        'data_wait': data_wait,
+        'auto_update': auto_update
+    }
 
-        # DTE slider
-        st.markdown(f'<p style="color:{COLORS["text_secondary"]};font-size:0.8rem;margin-bottom:0.25rem;">MAX DAYS TO EXPIRATION</p>', unsafe_allow_html=True)
-        max_dte = st.slider(
-            "Max Days to Expiration",
-            min_value=1,
-            max_value=60,
-            value=30,
-            step=1,
-            help="Include options expiring within this many days",
-            label_visibility="collapsed"
-        )
+    # Check if parameters have changed or if it's the first run
+    params_changed = st.session_state.last_run_params != current_params
+    
+    # Button to trigger manual calculation
+    calculate_btn = st.button("Calculate GEX", type="primary", use_container_width=True)
+    
+    # For auto-update, we always run if the session is stale or parameters changed.
+    # Actually, with run_every, the function is called periodically.
+    # We should run if:
+    # 1. Button clicked
+    # 2. Params changed
+    # 3. Auto-update is ON (this function is called periodically, so we just run)
+    
+    should_run = calculate_btn or params_changed or auto_update
+    
+    # If we are in manual mode (passed auto_update=False), simple invalidation logic applies.
+    # If in auto mode, we run every time this function is called (which is every 60s + interactions).
 
-        # Strike range
-        st.markdown(f'<p style="color:{COLORS["text_secondary"]};font-size:0.8rem;margin-bottom:0.25rem;">STRIKE RANGE (% FROM SPOT)</p>', unsafe_allow_html=True)
-        strike_range = st.slider(
-            "Strike Range (% from spot)",
-            min_value=5,
-            max_value=50,
-            value=20,
-            step=5,
-            help="Filter strikes within this percentage of spot price",
-            label_visibility="collapsed"
-        )
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # Advanced settings
-        with st.expander("Advanced Settings"):
-            major_threshold = st.number_input(
-                "Major Level Threshold ($M)",
-                min_value=10,
-                max_value=500,
-                value=50,
-                step=10,
-                help="Minimum GEX for 'major' gamma walls"
-            )
-
-            data_wait = st.slider(
-                "Data Collection Time (s)",
-                min_value=2,
-                max_value=10,
-                value=5,
-                help="Seconds to wait for streaming data"
-            )
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # Calculate button
-        calculate_btn = st.button(
-            "Calculate GEX",
-            type="primary",
-            use_container_width=True
-        )
-
-    # Main content area
-    if calculate_btn:
-        # Progress indicator
-        progress_container = st.empty()
-        status_text = st.empty()
-
+    if should_run:
+        st.session_state.last_run_params = current_params # Update last run params
+        
+        status_container = st.empty()
+        progress_bar = st.progress(0)
+        
         def update_progress(msg):
-            status_text.text(f"⏳ {msg}")
+            status_container.info(f"🔄 {msg}")
+            
+        try:
+            session = st.session_state.get('tt_session')
+            
+            # If session is dead/missing, try to recreate
+            if not session:
+                update_progress("Re-initializing Tastytrade session...")
+                session = create_session()
+                st.session_state.tt_session = session
 
-        with st.spinner(f"Calculating GEX for {symbol}..."):
+            # Initial calculation attempt
+            update_progress(f"Calculating GEX for {symbol}...")
             result = run_gex_calculation(
-                symbol=symbol,
+                symbol=symbol, 
                 max_dte=max_dte,
-                strike_range_pct=strike_range / 100,
-                progress_callback=update_progress
+                strike_range_pct=strike_range_pct,
+                major_level_threshold=major_threshold,
+                data_wait_seconds=data_wait,
+                progress_callback=update_progress,
+                session=session
             )
-
-        status_text.empty()
-
-        if result.error:
-            st.error(f"❌ Error: {result.error}")
-            st.stop()
-
-        # Store result in session state
-        st.session_state['gex_result'] = result
-        st.session_state['last_update'] = datetime.now()
-
-    # Display results if available
+            
+            # Check for Unauthorized error and retry logic
+            if result.error and "unauthorized" in result.error.lower():
+                update_progress("Session expired. Re-authenticating...")
+                # Clear invalid session
+                if 'tt_session' in st.session_state:
+                    del st.session_state.tt_session
+                
+                # Create new session
+                session = create_session()
+                st.session_state.tt_session = session
+                
+                if session:
+                    update_progress(f"Retrying GEX calculation for {symbol}...")
+                    result = run_gex_calculation(
+                        symbol=symbol, 
+                        max_dte=max_dte,
+                        strike_range_pct=strike_range_pct,
+                        major_level_threshold=major_threshold,
+                        data_wait_seconds=data_wait,
+                        progress_callback=update_progress,
+                        session=session
+                    )
+            
+            progress_bar.progress(100)
+            status_container.empty()
+            time.sleep(0.5)
+            progress_bar.empty()
+            
+            if result.error:
+                st.error(f"❌ {result.error}")
+                # If auth error persists, ensure session is cleared
+                err_lower = result.error.lower()
+                if "authentication" in err_lower or "credentials" in err_lower or "unauthorized" in err_lower:
+                    if 'tt_session' in st.session_state:
+                        del st.session_state.tt_session
+            else:
+                # Store result in session state for display
+                st.session_state['gex_result'] = result
+                st.session_state['last_update'] = datetime.now()
+        
+        except Exception as e:
+            st.error(f"An unexpected error occurred during calculation: {str(e)}")
+            # Clear session on error to be safe
+            if 'tt_session' in st.session_state:
+                del st.session_state.tt_session
+    
+    # Display results if available in session state
     if 'gex_result' in st.session_state:
         result = st.session_state['gex_result']
         last_update = st.session_state.get('last_update', datetime.now())
@@ -1148,6 +1163,151 @@ def main():
             Configure settings in the sidebar and click <b>Calculate GEX</b> to begin
         </p>
         ''')
+
+
+
+def main():
+    # Header with gradient text
+    st.markdown('''
+    <div style="text-align: center; padding: 1rem 0 0.5rem 0;">
+        <p class="main-header">GEX Tool</p>
+        <p class="sub-header">Real-Time Gamma Exposure Analysis</p>
+    </div>
+    ''', unsafe_allow_html=True)
+    st.markdown("---")
+
+    # Check credentials
+    client_secret, refresh_token = get_credentials()
+    if not client_secret or not refresh_token:
+        st.error("⚠️ **Missing Credentials**")
+        st.markdown("""
+        Please configure your Tastytrade API credentials as environment variables:
+        - `TT_CLIENT_SECRET`
+        - `TT_REFRESH_TOKEN`
+
+        For more information, see the [Tastytrade API documentation](https://tastytrade-api-js.readthedocs.io/).
+        """)
+        st.stop()
+
+    # Sidebar controls
+    with st.sidebar:
+        st.markdown(f'''
+        <div style="text-align:center;padding:0.5rem 0 1rem 0;">
+            <span style="font-size:1.5rem;font-weight:700;color:{COLORS['text_primary']};">
+                Settings
+            </span>
+        </div>
+        ''', unsafe_allow_html=True)
+
+        # Symbol selection
+        st.markdown(f'<p style="color:{COLORS["text_secondary"]};font-size:0.8rem;margin-bottom:0.25rem;">SYMBOL</p>', unsafe_allow_html=True)
+        symbol = st.selectbox(
+            "Symbol",
+            options=["SPY", "QQQ", "IWM", "DIA", "AAPL", "TSLA", "NVDA", "AMD", "AMZN", "MSFT"],
+            index=0,
+            help="Select the underlying symbol to analyze",
+            label_visibility="collapsed"
+        )
+
+        # Custom symbol input
+        custom_symbol = st.text_input(
+            "Or enter custom symbol",
+            placeholder="Enter custom symbol...",
+            help="Enter any optionable symbol",
+            label_visibility="collapsed"
+        )
+        if custom_symbol:
+            is_valid, error_msg = validate_symbol(custom_symbol)
+            if not is_valid:
+                st.error(f"Invalid symbol: {error_msg}")
+                st.stop()
+            symbol = custom_symbol.strip().upper()
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # DTE slider
+        st.markdown(f'<p style="color:{COLORS["text_secondary"]};font-size:0.8rem;margin-bottom:0.25rem;">MAX DAYS TO EXPIRATION</p>', unsafe_allow_html=True)
+        max_dte = st.slider(
+            "Max Days to Expiration",
+            min_value=1,
+            max_value=60,
+            value=30,
+            step=1,
+            help="Include options expiring within this many days",
+            label_visibility="collapsed"
+        )
+
+        # Strike range
+        st.markdown(f'<p style="color:{COLORS["text_secondary"]};font-size:0.8rem;margin-bottom:0.25rem;">STRIKE RANGE (% FROM SPOT)</p>', unsafe_allow_html=True)
+        strike_range = st.slider(
+            "Strike Range (% from spot)",
+            min_value=5,
+            max_value=50,
+            value=20,
+            step=5,
+            help="Filter strikes within this percentage of spot price",
+            label_visibility="collapsed"
+        )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Advanced settings
+        with st.expander("Advanced Settings"):
+            major_threshold = st.number_input(
+                "Major Level Threshold ($M)",
+                min_value=10,
+                max_value=500,
+                value=50,
+                step=10,
+                help="Minimum GEX for 'major' gamma walls"
+            )
+
+            data_wait = st.slider(
+                "Data Collection Time (s)",
+                min_value=2,
+                max_value=10,
+                value=5,
+                help="Seconds to wait for streaming data"
+            )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Auto-update toggle
+        st.markdown(f'<p style="color:{COLORS["text_secondary"]};font-size:0.8rem;margin-bottom:0.25rem;">AUTO UPDATE</p>', unsafe_allow_html=True)
+        auto_update = st.checkbox(
+            "Auto-update (every 60s)", 
+            value=False,
+            help="Automatically refresh data every minute"
+        )
+
+        st.markdown("---")
+        st.markdown(f"""
+        <div style="font-size:0.8rem;color:{COLORS['text_muted']};text-align:center;">
+            v1.2.0 • Powered by Tastytrade
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Main content area - Render GEX Section via Fragment
+    # Main content area - Render GEX Section via Fragment
+    # Choose between auto-updating fragment or manual fragment based on toggle
+    if auto_update:
+        render_gex_section_auto(
+            symbol, 
+            max_dte, 
+            strike_range / 100, 
+            major_threshold, 
+            data_wait, 
+            auto_update
+        )
+    else:
+        render_gex_section_manual(
+            symbol, 
+            max_dte, 
+            strike_range / 100, 
+            major_threshold, 
+            data_wait, 
+            auto_update
+        )
 
 
 if __name__ == "__main__":
