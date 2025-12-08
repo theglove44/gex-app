@@ -100,7 +100,7 @@ def test_add_common_vertical_markers_with_all_levels(app_module, sample_result):
     assert len(updated.layout.shapes) == 4
     x_values = [shape["x0"] for shape in updated.layout.shapes]
     assert {sample_result.spot_price, sample_result.zero_gamma_level, sample_result.call_wall, sample_result.put_wall} == set(x_values)
-    assert any(ann.text.startswith("Spot") for ann in updated.layout.annotations)
+    assert any(ann.text.startswith("SPOT") for ann in updated.layout.annotations)
 
 
 def test_add_common_vertical_markers_optional_levels_missing(app_module):
@@ -116,4 +116,4 @@ def test_add_common_vertical_markers_optional_levels_missing(app_module):
 
     assert len(updated.layout.shapes) == 1
     assert updated.layout.shapes[0]["x0"] == partial_result.spot_price
-    assert any(ann.text.startswith("Spot") for ann in updated.layout.annotations)
+    assert any(ann.text.startswith("SPOT") for ann in updated.layout.annotations)

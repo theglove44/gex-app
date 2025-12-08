@@ -291,6 +291,24 @@ def create_gex_chart(result) -> go.Figure:
 
     # Apply dark theme layout
     dark_layout = _get_dark_layout()
+    
+    # Merge specific axis overrides into the layout dict directly
+    if 'xaxis' not in dark_layout: dark_layout['xaxis'] = {}
+    dark_layout['xaxis'].update(dict(
+        tickformat="$,.0f",
+        showgrid=True,
+        gridwidth=1
+    ))
+    
+    if 'yaxis' not in dark_layout: dark_layout['yaxis'] = {}
+    dark_layout['yaxis'].update(dict(
+        tickformat="$,.0f",
+        ticksuffix="M",
+        showgrid=True,
+        gridwidth=1,
+        zeroline=True
+    ))
+
     fig.update_layout(
         **dark_layout,
         title=dict(
@@ -310,21 +328,7 @@ def create_gex_chart(result) -> go.Figure:
         height=520,
         hovermode='x unified',
         showlegend=False,
-        bargap=0.15,
-        xaxis=dict(
-            **dark_layout['xaxis'],
-            tickformat="$,.0f",
-            showgrid=True,
-            gridwidth=1
-        ),
-        yaxis=dict(
-            **dark_layout['yaxis'],
-            tickformat="$,.0f",
-            ticksuffix="M",
-            showgrid=True,
-            gridwidth=1,
-            zeroline=True
-        )
+        bargap=0.15
     )
 
     return fig
@@ -390,6 +394,24 @@ def create_breakdown_chart(result) -> go.Figure:
 
     # Apply dark theme layout
     dark_layout = _get_dark_layout()
+    
+    # Merge specific axis overrides into the layout dict directly
+    if 'xaxis' not in dark_layout: dark_layout['xaxis'] = {}
+    dark_layout['xaxis'].update(dict(
+        tickformat="$,.0f",
+        showgrid=True,
+        gridwidth=1
+    ))
+    
+    if 'yaxis' not in dark_layout: dark_layout['yaxis'] = {}
+    dark_layout['yaxis'].update(dict(
+        tickformat="$,.0f",
+        ticksuffix="M",
+        showgrid=True,
+        gridwidth=1,
+        zeroline=True
+    ))
+
     fig.update_layout(
         **dark_layout,
         barmode='relative',
@@ -416,20 +438,6 @@ def create_breakdown_chart(result) -> go.Figure:
             x=0.5,
             bgcolor='rgba(0,0,0,0)',
             font=dict(color=COLORS['text_primary'], size=12)
-        ),
-        xaxis=dict(
-            **dark_layout['xaxis'],
-            tickformat="$,.0f",
-            showgrid=True,
-            gridwidth=1
-        ),
-        yaxis=dict(
-            **dark_layout['yaxis'],
-            tickformat="$,.0f",
-            ticksuffix="M",
-            showgrid=True,
-            gridwidth=1,
-            zeroline=True
         )
     )
 
@@ -516,6 +524,14 @@ def create_heatmap_by_expiration(result) -> go.Figure:
     ))
 
     dark_layout = _get_dark_layout()
+    
+    # Merge specific axis overrides into the layout dict directly
+    if 'xaxis' not in dark_layout: dark_layout['xaxis'] = {}
+    dark_layout['xaxis'].update(dict(
+        tickangle=45,
+        side='bottom'
+    ))
+
     fig.update_layout(
         **dark_layout,
         title=dict(
@@ -528,15 +544,7 @@ def create_heatmap_by_expiration(result) -> go.Figure:
         ),
         xaxis_title="Expiration Date",
         yaxis_title="Strike Price",
-        height=420,
-        xaxis=dict(
-            **dark_layout['xaxis'],
-            tickangle=45,
-            side='bottom'
-        ),
-        yaxis=dict(
-            **dark_layout['yaxis']
-        )
+        height=420
     )
 
     return fig
