@@ -388,7 +388,9 @@ async def calculate_gex_profile(
                 'Type': 'Call' if is_call else 'Put',
                 'OI': oi,
                 'Gamma': gamma,
-                'Net GEX ($M)': round(net_gex, 4)
+                'Net GEX ($M)': round(net_gex, 4),
+                'Call GEX ($M)': round(raw_gex_m if is_call else 0.0, 4),
+                'Put GEX ($M)': round(-raw_gex_m if not is_call else 0.0, 4)
             })
 
         if not data:
@@ -404,12 +406,15 @@ async def calculate_gex_profile(
         total_gex = df['Net GEX ($M)'].sum()
 
         # Aggregate by strike
-        strike_gex = df.groupby('Strike')['Net GEX ($M)'].sum().reset_index()
+        # Aggregate by strike
+        strike_gex = df.groupby('Strike')[['Net GEX ($M)', 'Call GEX ($M)', 'Put GEX ($M)', 'OI']].sum().reset_index()
+        strike_gex.rename(columns={'OI': 'Total OI'}, inplace=True)
         strike_gex = strike_gex.sort_values(by='Strike')
 
         # Major levels
         major_levels = strike_gex[strike_gex['Net GEX ($M)'].abs() > major_level_threshold].copy()
         major_levels['Net GEX ($M)'] = major_levels['Net GEX ($M)'].round(1)
+        major_levels['Type'] = major_levels['Net GEX ($M)'].apply(lambda x: 'Call' if x > 0 else 'Put')
 
         # Find call wall (highest positive GEX) and put wall (lowest negative GEX)
         positive_gex = strike_gex[strike_gex['Net GEX ($M)'] > 0]

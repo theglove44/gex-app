@@ -11,3 +11,6 @@ matplotlib
 streamlit>=1.40.0
 plotly
 pytest
+fastapi
+uvicorn
+python-multipart
