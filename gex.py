@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from gex_core import run_gex_calculation
+from gex_app.core.gex_core import run_gex_calculation
 
 def visualize_and_print_results(result):
     """Print results and generate visualization chart."""

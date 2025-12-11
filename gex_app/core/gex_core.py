@@ -23,7 +23,7 @@ if sys.version_info < (3, 10):
 
 from tastytrade import Session, DXLinkStreamer
 from tastytrade.dxfeed import Greeks, Quote, Summary
-from tastytrade.instruments import get_option_chain
+from tastytrade.instruments import Option, get_option_chain
 from tastytrade.market_data import a_get_market_data_by_type
 
 # Load environment variables
@@ -75,6 +75,66 @@ async def get_spot_price(streamer, symbol: str) -> Optional[float]:
             and quote_event.ask_price and quote_event.bid_price):
             return (float(quote_event.ask_price) + float(quote_event.bid_price)) / 2.0
     return None
+
+
+def _fetch_option_chain_with_fallback(session: Session, symbol: str, log) -> tuple[Optional[dict], Optional[str]]:
+    """Fetch option chain, skipping entries missing expiration metadata.
+
+    Returns (chain, error_message). The chain matches tastytrade.get_option_chain's
+    structure: mapping expiration_date -> list[Option].
+    """
+
+    try:
+        return get_option_chain(session, symbol), None
+    except Exception as e:
+        error_msg = str(e)
+        # Specific issue: API occasionally omits expiration fields causing validation failure
+        if "expires-at" not in error_msg and "expiration" not in error_msg:
+            return None, f"Failed to fetch option chain: {e}"
+
+        if log:
+            log("Option chain had incomplete rows; retrying after filtering invalid entries...")
+
+        try:
+            raw = session._get(f"/option-chains/{symbol.replace('/', '%2F')}")
+        except Exception as fallback_err:
+            return None, f"Failed to fetch option chain: {e} (fallback also failed: {fallback_err})"
+
+        chain: dict[date, list[Option]] = {}
+        skipped_missing_exp = 0
+        skipped_validation = 0
+
+        for item in raw.get("items", []):
+            exp_val = item.get("expiration-date") or item.get("expiration_date")
+            expires_at_val = item.get("expires-at") or item.get("expires_at")
+            if not exp_val or not expires_at_val:
+                skipped_missing_exp += 1
+                continue
+
+            # Normalize keys for Option model if API used hyphenated names
+            if "expiration_date" not in item and "expiration-date" in item:
+                item = {**item, "expiration_date": item["expiration-date"]}
+            if "expires_at" not in item and "expires-at" in item:
+                item = {**item, "expires_at": item["expires-at"]}
+
+            try:
+                opt = Option(**item)
+            except Exception:
+                skipped_validation += 1
+                continue
+
+            chain.setdefault(opt.expiration_date, []).append(opt)
+
+        if not chain:
+            msg = "No valid options after filtering incomplete data"
+            if log:
+                log(msg)
+            return None, msg
+
+        if log and (skipped_missing_exp or skipped_validation):
+            log(f"Filtered out {skipped_missing_exp} options missing expiration and {skipped_validation} invalid options")
+
+        return chain, None
 
 
 def calculate_zero_gamma(strike_gex: pd.DataFrame, spot: float) -> Optional[float]:
@@ -171,17 +231,17 @@ async def calculate_gex_profile(
                 error="Could not fetch spot price"
             )
 
-        # Get option chain
+        # Get option chain with fallback that skips malformed rows
         log("Fetching option chain...")
-        try:
-            chain_result = get_option_chain(session, symbol)
-        except Exception as e:
+        chain_result, chain_error = _fetch_option_chain_with_fallback(session, symbol, log)
+
+        if chain_error:
             return GEXResult(
                 symbol=symbol, spot_price=spot, total_gex=0, zero_gamma_level=None,
                 max_dte=max_dte, strike_range=(0, 0), df=pd.DataFrame(),
                 strike_gex=pd.DataFrame(), major_levels=pd.DataFrame(),
                 call_wall=None, put_wall=None,
-                error=f"Failed to fetch option chain: {e}"
+                error=chain_error
             )
 
         if not chain_result:
@@ -195,11 +255,21 @@ async def calculate_gex_profile(
 
         # Normalize chain to list
         all_options_raw = []
-        if hasattr(chain_result, 'options'):
-            all_options_raw = list(chain_result.options)
-        elif isinstance(chain_result, dict):
-            for opts in chain_result.values():
-                all_options_raw.extend(opts)
+        try:
+            if hasattr(chain_result, 'options'):
+                all_options_raw = list(chain_result.options)
+            elif isinstance(chain_result, dict):
+                for opts in chain_result.values():
+                    if isinstance(opts, list):
+                        all_options_raw.extend(opts)
+                    else:
+                        # Single option or unexpected structure
+                        if opts:
+                            all_options_raw.append(opts)
+        except Exception as e:
+            log(f"Warning: Error processing option chain structure: {e}")
+            # Try to continue with what we have
+            pass
 
         # Filter options
         today = date.today()
@@ -210,6 +280,16 @@ async def calculate_gex_profile(
 
         all_options_to_monitor = []
         for opt in all_options_raw:
+            # Skip options with missing required fields
+            if not hasattr(opt, 'expiration_date') or opt.expiration_date is None:
+                continue
+            if not hasattr(opt, 'strike_price') or opt.strike_price is None:
+                continue
+            if not hasattr(opt, 'symbol') or opt.symbol is None:
+                continue
+            if not hasattr(opt, 'option_type') or opt.option_type is None:
+                continue
+
             days_to_exp = (opt.expiration_date - today).days
             if not (0 <= days_to_exp <= max_dte):
                 continue
