@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -6,18 +5,30 @@ import { KPICard } from "./kpi-card";
 import { GEXChart } from "./gex-chart";
 import { MajorLevelsTable } from "./major-levels-table";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Zap } from "lucide-react";
 import { useConfig } from "@/lib/config-context";
 import { Slider } from "@/components/ui/slider";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 
 export function DashboardView() {
-    const { symbol, max_dte, strike_range_pct, major_threshold, data_wait, api_url } = useConfig();
+    const {
+        symbol,
+        max_dte,
+        strike_range_pct,
+        major_threshold,
+        data_wait,
+        api_url,
+        auto_update,
+        setAutoUpdate
+    } = useConfig();
 
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
     const [visibleStrikes, setVisibleStrikes] = useState(12);
     const [isInitialized, setIsInitialized] = useState(false);
+    const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
     // Persist visibleStrikes
     useEffect(() => {
@@ -46,15 +57,15 @@ export function DashboardView() {
         }
     }, [visibleStrikes, isInitialized]);
 
-    const fetchData = useCallback(async (signal: AbortSignal) => {
+    const fetchData = useCallback(async (signal?: AbortSignal) => {
         if (!symbol) return;
 
-        setLoading(true);
+        // If auto-updating, don't show full loading spinner to avoid flicker
+        // unless it's the very first load
+        if (!data) setLoading(true);
         setError(null);
+
         try {
-            // Explicitly point to localhost to match typical Setup
-            // Or if you want relative path via proxy, but here use absolute for simplicity
-            // Ensure backend listens on 0.0.0.0 if accessing via LAN IP
             const res = await fetch(`${api_url}/api/v1/gex/calculate`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -77,20 +88,17 @@ export function DashboardView() {
             if (json.error) throw new Error(json.error);
 
             setData(json);
+            setLastUpdated(new Date());
         } catch (err: any) {
-            if (err.name === 'AbortError') {
-                console.log('Fetch aborted');
-                return;
-            }
+            if (err.name === 'AbortError') return;
             console.error("Dashboard Fetch Error:", err);
             setError(err.message || "Unknown error occurred");
         } finally {
-            if (!signal.aborted) {
-                setLoading(false);
-            }
+            setLoading(false);
         }
-    }, [symbol, max_dte, strike_range_pct, major_threshold, data_wait, api_url]);
+    }, [symbol, max_dte, strike_range_pct, major_threshold, data_wait, api_url, data]);
 
+    // Initial fetch and config change
     useEffect(() => {
         const controller = new AbortController();
         fetchData(controller.signal);
@@ -98,19 +106,51 @@ export function DashboardView() {
         return () => {
             controller.abort();
         };
-    }, [fetchData]);
+    }, [symbol, max_dte, strike_range_pct, major_threshold, data_wait, api_url]);
+
+    // Auto-Refresh Polling Effect
+    useEffect(() => {
+        if (!auto_update) return;
+
+        const intervalId = setInterval(() => {
+            fetchData();
+        }, 15000); // 15 seconds
+
+        return () => clearInterval(intervalId);
+    }, [auto_update, fetchData]);
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold tracking-tight">Dashboard ({symbol} {max_dte}DTE)</h1>
-                <Button onClick={() => {
-                    const controller = new AbortController();
-                    fetchData(controller.signal);
-                }} disabled={loading}>
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Refresh Data
-                </Button>
+                <div className="flex items-center gap-4">
+                    <h1 className="text-2xl font-bold tracking-tight">Dashboard ({symbol} {max_dte}DTE)</h1>
+                    {/* Heartbeat & Status */}
+                    {lastUpdated && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground animate-in fade-in duration-500">
+                            <div className={`h-2 w-2 rounded-full ${auto_update ? "bg-emerald-500 animate-pulse" : "bg-gray-400"}`} />
+                            {auto_update ? "Live" : `Updated ${lastUpdated.toLocaleTimeString()}`}
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center space-x-2 border-r pr-4 mr-2">
+                        <Switch
+                            id="auto-update"
+                            checked={auto_update}
+                            onCheckedChange={setAutoUpdate}
+                        />
+                        <Label htmlFor="auto-update" className="flex items-center gap-1 cursor-pointer">
+                            <Zap className={`h-3 w-3 ${auto_update ? "text-amber-400 fill-amber-400" : "text-gray-400"}`} />
+                            Live Mode
+                        </Label>
+                    </div>
+
+                    <Button onClick={() => fetchData()} disabled={loading}>
+                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Refresh Result
+                    </Button>
+                </div>
             </div>
 
             {error && (
@@ -178,4 +218,3 @@ export function DashboardView() {
         </div>
     );
 }
-

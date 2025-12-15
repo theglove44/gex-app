@@ -70,6 +70,10 @@ export function GEXChart({ data, spotPrice, callWall, putWall, zeroGamma, visibl
                             <span className="text-[#F43F5E] font-mono">${d["Put GEX ($M)"]?.toFixed(2) ?? "—"}M</span>
                         </p>
                         <p className="flex justify-between gap-6 items-center border-t border-border/50 pt-2 mt-2">
+                            <span className="text-muted-foreground font-medium">Total Volume:</span>
+                            <span className="font-mono text-foreground/80">{d["Total Volume"]?.toLocaleString() ?? "—"}</span>
+                        </p>
+                        <p className="flex justify-between gap-6 items-center">
                             <span className="text-muted-foreground font-medium">Total OI:</span>
                             <span className="font-mono text-foreground/80">{d["Total OI"]?.toLocaleString() ?? "—"}</span>
                         </p>

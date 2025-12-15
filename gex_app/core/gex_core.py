@@ -371,8 +371,12 @@ async def calculate_gex_profile(
             gamma = float(matching_greek.gamma) if matching_greek and matching_greek.gamma else 0.0
 
             oi = 0
-            if matching_summary and matching_summary.open_interest:
-                oi = int(matching_summary.open_interest)
+            volume = 0
+            if matching_summary:
+                if matching_summary.open_interest:
+                    oi = int(matching_summary.open_interest)
+                if matching_summary.day_volume:
+                    volume = int(matching_summary.day_volume)
             elif opt.symbol in initial_oi_map:
                 oi = initial_oi_map[opt.symbol]
 
@@ -387,6 +391,7 @@ async def calculate_gex_profile(
                 'Strike': strike,
                 'Type': 'Call' if is_call else 'Put',
                 'OI': oi,
+                'Volume': volume,
                 'Gamma': gamma,
                 'Net GEX ($M)': round(net_gex, 4),
                 'Call GEX ($M)': round(raw_gex_m if is_call else 0.0, 4),
@@ -406,9 +411,8 @@ async def calculate_gex_profile(
         total_gex = df['Net GEX ($M)'].sum()
 
         # Aggregate by strike
-        # Aggregate by strike
-        strike_gex = df.groupby('Strike')[['Net GEX ($M)', 'Call GEX ($M)', 'Put GEX ($M)', 'OI']].sum().reset_index()
-        strike_gex.rename(columns={'OI': 'Total OI'}, inplace=True)
+        strike_gex = df.groupby('Strike')[['Net GEX ($M)', 'Call GEX ($M)', 'Put GEX ($M)', 'OI', 'Volume']].sum().reset_index()
+        strike_gex.rename(columns={'OI': 'Total OI', 'Volume': 'Total Volume'}, inplace=True)
         strike_gex = strike_gex.sort_values(by='Strike')
 
         # Major levels
