@@ -13,6 +13,8 @@ import datetime
 import pandas as pd
 from dotenv import load_dotenv
 
+GEX_REVERSION_THRESHOLD = 1_000_000_000  # $1B Net GEX threshold
+
 # The tastytrade SDK uses Python 3.10+ union type syntax (e.g., `date | None`).
 # Provide a clear error before importing it on older interpreters to avoid
 # cryptic TypeError messages during import.
@@ -175,14 +177,15 @@ def analyze_strategy(
     Analyze GEX data to generate trading signals/strategies.
     Returns a dict with signal details or None if no clear signal.
     """
-    if not spot_price or not call_wall or not put_wall:
+    """
+    if spot_price is None or call_wall is None or put_wall is None:
         return None
 
     current_hour = datetime.datetime.now().hour
     
     # 1. Mean Reversion Play (Positive GEX Regime)
     # Condition: High positive GEX, price between walls
-    if total_gex > 1_000_000_000:  # > $1B Net GEX
+    if total_gex > GEX_REVERSION_THRESHOLD:  # > $1B Net GEX (Configurable)
         if put_wall < spot_price < call_wall:
             return {
                 "signal": "MEAN_REVERSION",
@@ -210,7 +213,12 @@ def analyze_strategy(
     # 3. Magnet Pinning (Late Day)
     # Condition: After 2PM (14:00), price near a major wall (< 0.5% away)
     if current_hour >= 14:
-        nearest_wall = min([call_wall, put_wall], key=lambda x: abs(x - spot_price))
+        # Filter valid walls
+        valid_walls = [w for w in [call_wall, put_wall] if w is not None]
+        if not valid_walls:
+            return None
+            
+        nearest_wall = min(valid_walls, key=lambda x: abs(x - spot_price))
         dist_pct = abs(spot_price - nearest_wall) / spot_price
         
         if dist_pct < 0.005: # Within 0.5%
