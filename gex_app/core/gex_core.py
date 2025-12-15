@@ -308,9 +308,9 @@ async def calculate_gex_profile(
 
         log(f"Found {len(all_options_to_monitor)} options to analyze...")
 
-        # Fetch initial OI snapshot (fallback)
-        log("Fetching open interest data...")
-        initial_oi_map = {}
+        # Fetch initial market data snapshot (OI and Volume)
+        log("Fetching market data (OI, Volume)...")
+        market_data_map = {}
         all_symbols = [opt.symbol for opt in all_options_to_monitor]
 
         for i in range(0, len(all_symbols), 100):
@@ -318,8 +318,14 @@ async def calculate_gex_profile(
             try:
                 market_data = await a_get_market_data_by_type(session, options=chunk)
                 for md in market_data:
+                    entry = {}
                     if md.open_interest is not None:
-                        initial_oi_map[md.symbol] = int(md.open_interest)
+                        entry['oi'] = int(md.open_interest)
+                    if hasattr(md, 'volume') and md.volume is not None:
+                        entry['volume'] = int(md.volume)
+                    
+                    if entry:
+                        market_data_map[md.symbol] = entry
             except Exception:
                 pass
 
@@ -370,8 +376,11 @@ async def calculate_gex_profile(
 
             gamma = float(matching_greek.gamma) if matching_greek and matching_greek.gamma else 0.0
 
-            oi = 0
-            volume = 0
+            # Initial baselines from snapshot
+            md_entry = market_data_map.get(opt.symbol, {})
+            oi = md_entry.get('oi', 0)
+            volume = md_entry.get('volume', 0)
+
             if matching_summary:
                 if matching_summary.open_interest:
                     oi = int(matching_summary.open_interest)
@@ -379,8 +388,6 @@ async def calculate_gex_profile(
                 vol_val = getattr(matching_summary, 'day_volume', 0)
                 if vol_val:
                     volume = int(vol_val)
-            elif opt.symbol in initial_oi_map:
-                oi = initial_oi_map[opt.symbol]
 
             strike = float(opt.strike_price)
             raw_gex_m = (oi * gamma * 100 * (spot ** 2) * 0.01) / 1_000_000

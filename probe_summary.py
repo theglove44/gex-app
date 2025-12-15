@@ -3,7 +3,7 @@ import os
 import sys
 from dotenv import load_dotenv
 from tastytrade import Session, DXLinkStreamer
-from tastytrade.dxfeed import Quote
+from tastytrade.dxfeed import Quote, Summary
 from tastytrade.instruments import get_option_chain
 
 # Ensure we can import from project root
@@ -35,14 +35,14 @@ async def probe():
     print(f"Probing Option: {stream_symbol}")
 
     async with DXLinkStreamer(session) as streamer:
-        # Subscribe to Option Quote
-        await streamer.subscribe(Quote, [stream_symbol])
+        # Subscribe to Option Summary (not Quote)
+        await streamer.subscribe(Summary, [stream_symbol])
         
-        print("Waiting for Quote event...")
-        acc_event = await streamer.get_event(Quote)
+        print("Waiting for Summary event...")
+        acc_event = await streamer.get_event(Summary)
         
         if acc_event:
-            print("\n--- Quote Object Attributes ---")
+            print("\n--- Summary Object Attributes ---")
             for attr in dir(acc_event):
                 if not attr.startswith("_"):
                     try:
