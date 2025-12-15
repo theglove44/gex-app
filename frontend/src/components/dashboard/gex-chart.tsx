@@ -20,9 +20,10 @@ interface GEXChartProps {
     putWall?: number;
     zeroGamma?: number;
     visibleStrikes?: number;
+    weightedMode?: boolean;
 }
 
-export function GEXChart({ data, spotPrice, callWall, putWall, zeroGamma, visibleStrikes = 12 }: GEXChartProps) {
+export function GEXChart({ data, spotPrice, callWall, putWall, zeroGamma, visibleStrikes = 12, weightedMode = false }: GEXChartProps) {
     // Filter data to show only +/- visibleStrikes around the spot price to eliminate scrolling
     // and keep the view compact and focused.
     const RANGE = visibleStrikes; // Number of strikes above and below spot to show
@@ -48,17 +49,32 @@ export function GEXChart({ data, spotPrice, callWall, putWall, zeroGamma, visibl
 
     const viewData = sortedData.slice(startIndex, endIndex);
 
+    const dataKey = weightedMode ? "VolWeightedGEX" : "Net GEX ($M)";
+
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
             const d = payload[0].payload;
+            const netGex = d["Net GEX ($M)"];
+            const weightedGex = d["VolWeightedGEX"];
+
             return (
                 <div className="bg-popover/90 backdrop-blur-md border border-border/50 p-4 rounded-xl shadow-2xl text-popover-foreground text-sm ring-1 ring-white/10">
                     <p className="font-bold mb-3 text-lg border-b border-border/50 pb-2">Strike: ${d.Strike}</p>
                     <div className="space-y-2">
+                        {/* Weighted GEX (Primary if mode enabled) */}
+                        {weightedMode && (
+                            <p className="flex justify-between gap-6 items-center">
+                                <span className="text-indigo-400 font-medium font-bold">Vol-Wtd GEX:</span>
+                                <span className={weightedGex > 0 ? "text-[#10B981] font-mono font-bold" : "text-[#F43F5E] font-mono font-bold"}>
+                                    {weightedGex?.toFixed(2) ?? "0.00"}
+                                </span>
+                            </p>
+                        )}
+
                         <p className="flex justify-between gap-6 items-center">
                             <span className="text-muted-foreground font-medium">Net GEX:</span>
-                            <span className={d["Net GEX ($M)"] > 0 ? "text-[#10B981] font-mono font-bold glow-green" : "text-[#F43F5E] font-mono font-bold glow-red"}>
-                                ${d["Net GEX ($M)"].toFixed(2)}M
+                            <span className={netGex > 0 ? "text-[#10B981] font-mono font-bold glow-green" : "text-[#F43F5E] font-mono font-bold glow-red"}>
+                                ${netGex.toFixed(2)}M
                             </span>
                         </p>
                         <p className="flex justify-between gap-6 items-center">
@@ -87,7 +103,7 @@ export function GEXChart({ data, spotPrice, callWall, putWall, zeroGamma, visibl
     return (
         <Card className="col-span-3 border-sidebar-border bg-card flex flex-col h-[600px]">
             <CardHeader className="flex-none py-4">
-                <CardTitle>Gamma Exposure Profile (Neon View)</CardTitle>
+                <CardTitle>Gamma Exposure Profile ({weightedMode ? "Volume-Weighted View" : "Neon View"})</CardTitle>
             </CardHeader>
             <CardContent className="flex-1 min-h-0 relative p-0 pb-2">
                 <ResponsiveContainer width="100%" height="100%">
@@ -101,7 +117,7 @@ export function GEXChart({ data, spotPrice, callWall, putWall, zeroGamma, visibl
                             type="number"
                             stroke="var(--muted-foreground)"
                             fontSize={12}
-                            tickFormatter={(val) => `$${val}M`}
+                            tickFormatter={(val) => weightedMode ? val.toFixed(1) : `$${val}M`}
                             orientation="top"
                             axisLine={false}
                             tickLine={false}
@@ -142,12 +158,12 @@ export function GEXChart({ data, spotPrice, callWall, putWall, zeroGamma, visibl
                             <ReferenceLine y={zeroGamma} stroke="var(--chart-4)" strokeDasharray="2 2" label={{ position: 'right', value: 'Zero Gamma', fill: 'var(--chart-4)', fontSize: 10 }} />
                         )}
 
-                        <Bar dataKey="Net GEX ($M)" name="Net GEX" barSize={16} radius={[4, 4, 4, 4]}>
+                        <Bar dataKey={dataKey} name={weightedMode ? "Vol-Wtd GEX" : "Net GEX"} barSize={16} radius={[4, 4, 4, 4]}>
                             {viewData.map((entry: any, index: number) => (
                                 <Cell
                                     key={`cell-${index}`}
-                                    fill={entry["Net GEX ($M)"] > 0 ? "#10B981" : "#F43F5E"}
-                                    className={entry["Net GEX ($M)"] > 0 ? "glow-green" : "glow-red"}
+                                    fill={entry[dataKey] > 0 ? "#10B981" : "#F43F5E"}
+                                    className={entry[dataKey] > 0 ? "glow-green" : "glow-red"}
                                     fillOpacity={0.9}
                                 />
                             ))}

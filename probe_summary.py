@@ -1,45 +1,58 @@
 import asyncio
 import os
-import logging
+import sys
 from dotenv import load_dotenv
 from tastytrade import Session, DXLinkStreamer
+from tastytrade.dxfeed import Quote
 from tastytrade.instruments import get_option_chain
-from tastytrade.dxfeed import Summary
 
-# Logging
-logging.basicConfig(level=logging.DEBUG)
+# Ensure we can import from project root
+sys.path.append(os.getcwd())
 
 load_dotenv()
-CLIENT_SECRET = os.getenv('TT_CLIENT_SECRET')
-REFRESH_TOKEN = os.getenv('TT_REFRESH_TOKEN')
 
-async def main():
-    session = Session(CLIENT_SECRET, REFRESH_TOKEN)
+async def probe():
+    username = os.getenv("TT_USERNAME")
+    client_secret = os.getenv("TT_CLIENT_SECRET")
+    refresh_token = os.getenv("TT_REFRESH_TOKEN")
+
+    if not client_secret or not refresh_token:
+        print("Missing credentials")
+        return
+
+    session = Session(client_secret, refresh_token)
+    
+    # Get an option symbol
+    chain = get_option_chain(session, "SPX")
+    dates = sorted(chain.keys())
+    exp_date = dates[0]
+    strikes = chain[exp_date]
+    mid_strike = strikes[len(strikes)//2]
+    # Chain returns list of Option objects.
+    option = mid_strike # mid_strike is already an Option object
+    stream_symbol = option.symbol
+    
+    print(f"Probing Option: {stream_symbol}")
+
     async with DXLinkStreamer(session) as streamer:
-        chain = get_option_chain(session, 'SPY')
-        first_exp = sorted(chain.keys())[0]
-        options = chain[first_exp]
-        target = options[0]
+        # Subscribe to Option Quote
+        await streamer.subscribe(Quote, [stream_symbol])
         
-        symbol = target.streamer_symbol 
-        print(f"Testing Streamer Symbol: {symbol}")
-
-        print(f"Subscribing to Summary for {symbol}...")
-        await streamer.subscribe(Summary, [symbol])
-
-        print("Listening for 10 seconds...")
+        print("Waiting for Quote event...")
+        acc_event = await streamer.get_event(Quote)
         
-        async def monitor(label, event_type):
-            try:
-                async for event in streamer.listen(event_type):
-                    print(f"[{label}] {event}")
-            except Exception as e:
-                print(f"[{label}] Error: {e}")
-
-        t1 = asyncio.create_task(monitor("SUMMARY", Summary))
-        
-        await asyncio.sleep(10)
-        t1.cancel()
+        if acc_event:
+            print("\n--- Quote Object Attributes ---")
+            for attr in dir(acc_event):
+                if not attr.startswith("_"):
+                    try:
+                        val = getattr(acc_event, attr)
+                        if not callable(val):
+                            print(f"{attr}: {val}")
+                    except:
+                        pass
+        else:
+            print("No event received")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(probe())

@@ -27,6 +27,7 @@ export function DashboardView() {
     const [data, setData] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
     const [visibleStrikes, setVisibleStrikes] = useState(12);
+    const [weightedMode, setWeightedMode] = useState(false); // New state for Weighted Mode
     const [isInitialized, setIsInitialized] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
@@ -134,6 +135,18 @@ export function DashboardView() {
                 </div>
 
                 <div className="flex items-center gap-4">
+                    {/* Weighted Mode Toggle */}
+                    <div className="flex items-center space-x-2 border-r pr-4 mr-2">
+                        <Switch
+                            id="weighted-mode"
+                            checked={weightedMode}
+                            onCheckedChange={setWeightedMode}
+                        />
+                        <Label htmlFor="weighted-mode" className="flex items-center gap-1 cursor-pointer">
+                            <span className={weightedMode ? "text-indigo-400 font-bold" : "text-muted-foreground"}>Weighted</span>
+                        </Label>
+                    </div>
+
                     <div className="flex items-center space-x-2 border-r pr-4 mr-2">
                         <Switch
                             id="auto-update"
@@ -166,8 +179,9 @@ export function DashboardView() {
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                         <KPICard title="Spot Price" value={`$${data.spot_price.toFixed(2)} `} />
                         <KPICard
-                            title="Total Net GEX"
-                            value={`$${(data.total_gex / 1000).toFixed(2)} B`}
+                            title={weightedMode ? "Total Weighted GEX (Rel)" : "Total Net GEX"}
+                            value={weightedMode ? "—" : `$${(data.total_gex / 1000).toFixed(2)} B`}
+                            subValue={weightedMode ? "Metric is relative" : undefined}
                             className={data.total_gex > 0 ? "border-l-4 border-l-emerald-500" : "border-l-4 border-l-rose-500"}
                         />
                         <KPICard
@@ -211,6 +225,7 @@ export function DashboardView() {
                             putWall={data.put_wall}
                             zeroGamma={data.zero_gamma_level}
                             visibleStrikes={visibleStrikes}
+                            weightedMode={weightedMode}
                         />
                     </div>
                 </>
