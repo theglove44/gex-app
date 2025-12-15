@@ -10,7 +10,7 @@ import { Loader2 } from "lucide-react";
 import { useConfig } from "@/lib/config-context";
 
 export function DashboardView() {
-    const { symbol, max_dte, strike_range_pct, major_threshold, data_wait } = useConfig();
+    const { symbol, max_dte, strike_range_pct, major_threshold, data_wait, api_url } = useConfig();
 
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<any>(null);
@@ -25,7 +25,7 @@ export function DashboardView() {
             // Explicitly point to localhost to match typical Setup
             // Or if you want relative path via proxy, but here use absolute for simplicity
             // Ensure backend listens on 0.0.0.0 if accessing via LAN IP
-            const res = await fetch("http://127.0.0.1:8000/api/v1/gex/calculate", {
+            const res = await fetch(`${api_url}/api/v1/gex/calculate`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -59,7 +59,7 @@ export function DashboardView() {
                 setLoading(false);
             }
         }
-    }, [symbol, max_dte, strike_range_pct, major_threshold, data_wait]);
+    }, [symbol, max_dte, strike_range_pct, major_threshold, data_wait, api_url]);
 
     useEffect(() => {
         const controller = new AbortController();
@@ -87,7 +87,7 @@ export function DashboardView() {
                 <div className="p-4 border border-rose-900/50 bg-rose-950/20 text-rose-500 rounded-md">
                     <p className="font-bold">Error loading data:</p>
                     <p className="font-mono text-sm">{error}</p>
-                    <p className="text-xs mt-2 text-muted-foreground">Make sure the backend is running on http://127.0.0.1:8000</p>
+                    <p className="text-xs mt-2 text-muted-foreground">Make sure the backend is running on {api_url}</p>
                 </div>
             )}
 

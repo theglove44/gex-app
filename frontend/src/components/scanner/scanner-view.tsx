@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ArrowUpDown } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { useConfig } from "@/lib/config-context";
 
 // Data type matching API GEXResponse
 interface ScanResult {
@@ -101,6 +102,7 @@ export function ScannerView() {
     const [loading, setLoading] = useState(false);
     const [sorting, setSorting] = useState<SortingState>([]);
     const [error, setError] = useState<string | null>(null);
+    const { api_url } = useConfig();
 
     const table = useReactTable({
         data,
@@ -126,7 +128,7 @@ export function ScannerView() {
         }
 
         try {
-            const res = await fetch("http://localhost:8000/api/v1/gex/scan", {
+            const res = await fetch(`${api_url}/api/v1/gex/scan`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

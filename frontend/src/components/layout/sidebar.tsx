@@ -15,7 +15,8 @@ export function Sidebar({ className }: SidebarProps) {
     const {
         symbol, setSymbol,
         max_dte, setMaxDte,
-        major_threshold, setMajorThreshold
+        major_threshold, setMajorThreshold,
+        api_url, setApiUrl
     } = useConfig();
 
     return (
@@ -85,6 +86,16 @@ export function Sidebar({ className }: SidebarProps) {
                                 step={10}
                                 onValueChange={(v) => setMajorThreshold(v[0])}
                                 className="py-1"
+                            />
+                        </div>
+
+                        <div className="space-y-2 pt-4 border-t border-sidebar-border">
+                            <span className="text-xs font-medium text-muted-foreground">API Connection</span>
+                            <Input
+                                value={api_url}
+                                onChange={(e) => setApiUrl(e.target.value)}
+                                className="h-8 font-mono text-[10px] bg-sidebar-accent/50 border-sidebar-border"
+                                placeholder="http://localhost:8000"
                             />
                         </div>
                     </div>
