@@ -25,7 +25,7 @@ if sys.version_info < (3, 10):
     )
 
 from tastytrade import Session, DXLinkStreamer
-from tastytrade.dxfeed import Greeks, Quote, Summary
+from tastytrade.dxfeed import Greeks, Quote, Summary, Trade
 from tastytrade.instruments import Option, get_option_chain
 from tastytrade.market_data import a_get_market_data_by_type
 
@@ -70,17 +70,44 @@ def create_session() -> Optional[Session]:
 async def get_spot_price(streamer, symbol: str) -> Optional[float]:
     """Fetch current spot price for a symbol."""
     await streamer.subscribe(Quote, [symbol])
+    await streamer.subscribe(Trade, [symbol])
+    
     try:
-        quote_event = await asyncio.wait_for(streamer.get_event(Quote), timeout=3.0)
-    except asyncio.TimeoutError:
+        # Race Quote and Trade events
+        t_quote = asyncio.create_task(streamer.get_event(Quote))
+        t_trade = asyncio.create_task(streamer.get_event(Trade))
+        
+        done, pending = await asyncio.wait(
+            [t_quote, t_trade], 
+            return_when=asyncio.FIRST_COMPLETED, 
+            timeout=5.0
+        )
+        
+        for p in pending:
+            p.cancel()
+            
+        if not done:
+            return None
+            
+        # Process the winner
+        event = done.pop().result()
+        
+        # Priority 1: Trade Price (Last)
+        if hasattr(event, 'price') and event.price:
+            return float(event.price)
+            
+        # Priority 2: Quote Last Price
+        if hasattr(event, 'last_price') and event.last_price:
+            return float(event.last_price)
+            
+        # Priority 3: Quote Bid/Ask Mid
+        if (hasattr(event, 'ask_price') and hasattr(event, 'bid_price')
+            and event.ask_price and event.bid_price):
+            return (float(event.ask_price) + float(event.bid_price)) / 2.0
+            
+    except Exception:
         return None
-
-    if quote_event:
-        if hasattr(quote_event, 'last_price') and quote_event.last_price:
-            return float(quote_event.last_price)
-        if (hasattr(quote_event, 'ask_price') and hasattr(quote_event, 'bid_price')
-            and quote_event.ask_price and quote_event.bid_price):
-            return (float(quote_event.ask_price) + float(quote_event.bid_price)) / 2.0
+        
     return None
 
 
