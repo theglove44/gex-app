@@ -17,18 +17,34 @@ export function DashboardView() {
     const [data, setData] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
     const [visibleStrikes, setVisibleStrikes] = useState(12);
+    const [isInitialized, setIsInitialized] = useState(false);
 
     // Persist visibleStrikes
     useEffect(() => {
-        const stored = localStorage.getItem("gex_visible_strikes");
-        if (stored) {
-            setVisibleStrikes(parseInt(stored));
+        try {
+            const stored = localStorage.getItem("gex_visible_strikes");
+            if (stored) {
+                const parsed = parseInt(stored);
+                // Validation: must be number between 5 and 50
+                if (!isNaN(parsed) && parsed >= 5 && parsed <= 50) {
+                    setVisibleStrikes(parsed);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to load visibleStrikes:", error);
+        } finally {
+            setIsInitialized(true);
         }
     }, []);
 
     useEffect(() => {
-        localStorage.setItem("gex_visible_strikes", visibleStrikes.toString());
-    }, [visibleStrikes]);
+        if (!isInitialized) return;
+        try {
+            localStorage.setItem("gex_visible_strikes", visibleStrikes.toString());
+        } catch (error) {
+            console.error("Failed to save visibleStrikes:", error);
+        }
+    }, [visibleStrikes, isInitialized]);
 
     const fetchData = useCallback(async (signal: AbortSignal) => {
         if (!symbol) return;
