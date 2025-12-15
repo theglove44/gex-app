@@ -58,16 +58,19 @@ export function useGEXAlerts({
             const lastTrigger = lastTriggeredRef.current[name] || 0;
             if (now - lastTrigger < ALERT_COOLDOWN_MS) return; // Skip if in cooldown
 
+            // Security: Sanitize symbol to prevent XSS in toast messages
+            const safeSymbol = symbol.replace(/[^a-zA-Z0-9.\-\/]/g, "");
+
             // Bullish Cross (Breakout/Reclaim)
             if (prevSpot < level && spotPrice >= level) {
-                const msg = `🚀 ${symbol} crossed ABOVE ${name} (${level})`;
+                const msg = `🚀 ${safeSymbol} crossed ABOVE ${name} (${level})`;
                 toast.success(msg);
                 playSound();
                 lastTriggeredRef.current[name] = now;
             }
             // Bearish Cross (Breakdown/Loss)
             else if (prevSpot > level && spotPrice <= level) {
-                const msg = `🔻 ${symbol} crossed BELOW ${name} (${level})`;
+                const msg = `🔻 ${safeSymbol} crossed BELOW ${name} (${level})`;
                 toast.error(msg);
                 playSound();
                 lastTriggeredRef.current[name] = now;
