@@ -5,11 +5,15 @@ import { KPICard } from "./kpi-card";
 import { GEXChart } from "./gex-chart";
 import { MajorLevelsTable } from "./major-levels-table";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useGEXAlerts } from "@/hooks/use-gex-alerts";
+import { Bell, Volume2, VolumeX } from "lucide-react";
 import { Loader2, Zap } from "lucide-react";
 import { useConfig } from "@/lib/config-context";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { StrategyCard } from "./strategy-card";
 
 export function DashboardView() {
     const {
@@ -30,6 +34,15 @@ export function DashboardView() {
     const [weightedMode, setWeightedMode] = useState(false); // New state for Weighted Mode
     const [isInitialized, setIsInitialized] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+    // Alerts Hook
+    const { alertsEnabled, setAlertsEnabled, soundEnabled, setSoundEnabled } = useGEXAlerts({
+        symbol,
+        spotPrice: data?.spot_price || 0,
+        callWall: data?.call_wall,
+        putWall: data?.put_wall,
+        zeroGamma: data?.zero_gamma_level
+    });
 
     // Persist visibleStrikes
     useEffect(() => {
@@ -135,6 +148,52 @@ export function DashboardView() {
                 </div>
 
                 <div className="flex items-center gap-4">
+                    {/* Alert Settings Popover */}
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" size="icon" className={`mr-2 relative ${alertsEnabled ? "border-amber-500/50 text-amber-500" : ""}`}>
+                                <Bell className={`h-4 w-4 ${alertsEnabled ? "fill-amber-500/20" : ""}`} />
+                                {alertsEnabled && <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-amber-500" />}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80">
+                            <div className="grid gap-4">
+                                <div className="space-y-2">
+                                    <h4 className="font-medium leading-none">Alert Settings</h4>
+                                    <p className="text-sm text-muted-foreground">
+                                        Configure notifications for major level crossings.
+                                    </p>
+                                </div>
+                                <div className="grid gap-2">
+                                    <div className="flex items-center justify-between border rounded-lg p-3">
+                                        <div className="space-y-0.5">
+                                            <Label className="text-base">Enable Alerts</Label>
+                                            <p className="text-xs text-muted-foreground">Notify on Zero Gamma/Wall crosses</p>
+                                        </div>
+                                        <Switch
+                                            checked={alertsEnabled}
+                                            onCheckedChange={setAlertsEnabled}
+                                        />
+                                    </div>
+                                    <div className="flex items-center justify-between border rounded-lg p-3">
+                                        <div className="space-y-0.5">
+                                            <Label className="text-base flex items-center gap-2">
+                                                {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                                                Sound
+                                            </Label>
+                                            <p className="text-xs text-muted-foreground">Play chime on alert</p>
+                                        </div>
+                                        <Switch
+                                            checked={soundEnabled}
+                                            onCheckedChange={setSoundEnabled}
+                                            disabled={!alertsEnabled}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+
                     {/* Weighted Mode Toggle */}
                     <div className="flex items-center space-x-2 border-r pr-4 mr-2">
                         <Switch
@@ -177,6 +236,13 @@ export function DashboardView() {
             {data && (
                 <>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                        {/* Strategy Card - Full Width if Active */}
+                        {data.strategy && (
+                            <div className="md:col-span-2 lg:col-span-4">
+                                <StrategyCard strategy={data.strategy} />
+                            </div>
+                        )}
+
                         <KPICard title="Spot Price" value={`$${data.spot_price.toFixed(2)} `} />
                         <KPICard
                             title={weightedMode ? "Total Weighted GEX (Rel)" : "Total Net GEX"}
