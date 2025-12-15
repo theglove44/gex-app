@@ -70,7 +70,10 @@ def create_session() -> Optional[Session]:
 async def get_spot_price(streamer, symbol: str) -> Optional[float]:
     """Fetch current spot price for a symbol."""
     await streamer.subscribe(Quote, [symbol])
-    quote_event = await streamer.get_event(Quote)
+    try:
+        quote_event = await asyncio.wait_for(streamer.get_event(Quote), timeout=3.0)
+    except asyncio.TimeoutError:
+        return None
 
     if quote_event:
         if hasattr(quote_event, 'last_price') and quote_event.last_price:
