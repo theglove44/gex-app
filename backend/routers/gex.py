@@ -35,7 +35,9 @@ class GEXResponse(BaseModel):
     call_wall: Optional[float]
     put_wall: Optional[float]
     major_levels: List[Dict[str, Any]]
-    strike_gex: List[Dict[str, Any]]  # Simplified for charting
+    strike_gex: List[Dict[str, Any]]  
+    # strike_gex includes 'VolWeightedGEX' = Net GEX * (Strike Volume / Total Volume)
+    # This is a relative metric of intraday participation.
     strategy: Optional[StrategySignal] = None
     error: Optional[str] = None
 

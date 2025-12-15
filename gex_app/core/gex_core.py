@@ -497,20 +497,18 @@ async def calculate_gex_profile(
 
         # Calculate Volume-Weighted GEX
         # Formula: NetGEX * (StrikeVolume / TotalVolume)
-        # We normalize by total volume across all strikes in the range
+        # This yields a "Volume-Weighted Net GEX" which is a relative metric of
+        # how much capital/interest is backing the GEX at that strike intraday.
+        # NOTE: This effectively downscales GEX significantly. Use as relative profile.
         total_vol_all_strikes = strike_gex['Total Volume'].sum()
         
         if total_vol_all_strikes > 0:
-            # Multiplier: how much of the total volume is at this strike?
-            # We multiply by 10 to keep the scale somewhat readable relative to raw GEX,
-            # otherwise it becomes very small fractions.
-            # actually, let's just do strict weighting: GEX * (Vol/Total)
-            # This means the sum of weighted GEX != Total GEX, but that's fine, it's a relative metric.
-            strike_gex['VolWeightedGEX'] = strike_gex['Net GEX ($M)'] * (strike_gex['Total Volume'] / total_vol_all_strikes) * 10 
+            # Pure weighting (No arbitrary multiplier)
+            strike_gex['VolWeightedGEX'] = strike_gex['Net GEX ($M)'] * (strike_gex['Total Volume'] / total_vol_all_strikes)
         else:
             strike_gex['VolWeightedGEX'] = 0.0
 
-        strike_gex['VolWeightedGEX'] = strike_gex['VolWeightedGEX'].round(4)
+        strike_gex['VolWeightedGEX'] = strike_gex['VolWeightedGEX'].round(6)
 
         # Major levels
         major_levels = strike_gex[strike_gex['Net GEX ($M)'].abs() > major_level_threshold].copy()
