@@ -18,6 +18,18 @@ export function DashboardView() {
     const [error, setError] = useState<string | null>(null);
     const [visibleStrikes, setVisibleStrikes] = useState(12);
 
+    // Persist visibleStrikes
+    useEffect(() => {
+        const stored = localStorage.getItem("gex_visible_strikes");
+        if (stored) {
+            setVisibleStrikes(parseInt(stored));
+        }
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem("gex_visible_strikes", visibleStrikes.toString());
+    }, [visibleStrikes]);
+
     const fetchData = useCallback(async (signal: AbortSignal) => {
         if (!symbol) return;
 
@@ -127,6 +139,14 @@ export function DashboardView() {
                                 onValueChange={(v) => setVisibleStrikes(v[0])}
                                 className="w-[200px]"
                             />
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setVisibleStrikes(12)}
+                                className="h-8 text-xs"
+                            >
+                                Reset
+                            </Button>
                         </div>
                         <GEXChart
                             data={data.strike_gex}
