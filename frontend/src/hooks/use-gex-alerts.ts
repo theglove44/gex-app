@@ -5,14 +5,24 @@ interface UseGEXAlertsProps {
     spotPrice: number;
     callWall?: number;
     putWall?: number;
-    zeroGamma?: number;
+    zeroGamma?: number | null; // e.g., 4450
     symbol: string;
 }
 
-export function useGEXAlerts({ spotPrice, callWall, putWall, zeroGamma, symbol }: UseGEXAlertsProps) {
+const ALERT_COOLDOWN_MS = 300000; // 5 minutes cooldown per level
+
+export function useGEXAlerts({
+    symbol,
+    spotPrice,
+    callWall,
+    putWall,
+    zeroGamma
+}: UseGEXAlertsProps) {
     const [alertsEnabled, setAlertsEnabled] = useState(false);
     const [soundEnabled, setSoundEnabled] = useState(false);
 
+    const prevSpotRef = useRef<number>(spotPrice);
+    const lastTriggeredRef = useRef<Record<string, number>>({}); // Track last alert timestamp per level to detect crossings
     // Store previous price to detect crossings
     const prevPriceRef = useRef<number | null>(null);
 
@@ -34,42 +44,42 @@ export function useGEXAlerts({ spotPrice, callWall, putWall, zeroGamma, symbol }
     };
 
     useEffect(() => {
-        if (!alertsEnabled || prevPriceRef.current === null) {
-            prevPriceRef.current = spotPrice;
+        if (!alertsEnabled) {
+            prevSpotRef.current = spotPrice; // Always update prevSpotRef even if alerts are disabled
             return;
         }
 
-        const prev = prevPriceRef.current;
-        const curr = spotPrice;
+        const prevSpot = prevSpotRef.current;
 
-        const checkCross = (level: number | undefined, name: string, type: 'bullish' | 'bearish') => {
-            if (!level) return;
+        const checkCross = (level: number | undefined | null, name: string) => {
+            if (level === undefined || level === null) return;
 
-            // Bullish Cross: Prev < Level <= Curr
-            if (prev < level && curr >= level) {
-                toast.success(`${symbol} crossed ABOVE ${name} (${level})!`, {
-                    description: `Bullish Breakout? Price: $${curr.toFixed(2)}`,
-                    duration: 5000,
-                });
+            const now = Date.now();
+            const lastTrigger = lastTriggeredRef.current[name] || 0;
+            if (now - lastTrigger < ALERT_COOLDOWN_MS) return; // Skip if in cooldown
+
+            // Bullish Cross (Breakout/Reclaim)
+            if (prevSpot < level && spotPrice >= level) {
+                const msg = `🚀 ${symbol} crossed ABOVE ${name} (${level})`;
+                toast.success(msg);
                 playSound();
+                lastTriggeredRef.current[name] = now;
             }
-
-            // Bearish Cross: Prev > Level >= Curr
-            if (prev > level && curr <= level) {
-                toast.error(`${symbol} crossed BELOW ${name} (${level})!`, {
-                    description: `Bearish Breakdown? Price: $${curr.toFixed(2)}`,
-                    duration: 5000,
-                });
+            // Bearish Cross (Breakdown/Loss)
+            else if (prevSpot > level && spotPrice <= level) {
+                const msg = `🔻 ${symbol} crossed BELOW ${name} (${level})`;
+                toast.error(msg);
                 playSound();
+                lastTriggeredRef.current[name] = now;
             }
         };
 
-        checkCross(callWall, "Call Wall", 'bullish'); // Usually bullish if broken, or resistant
-        checkCross(putWall, "Put Wall", 'bearish');   // Usually bearish if broken, or support
-        checkCross(zeroGamma, "Zero Gamma", curr > (zeroGamma || 0) ? 'bullish' : 'bearish');
+        checkCross(zeroGamma, "Zero Gamma");
+        checkCross(callWall, "Call Wall");
+        checkCross(putWall, "Put Wall");
 
-        prevPriceRef.current = curr;
-    }, [spotPrice, alertsEnabled, soundEnabled, callWall, putWall, zeroGamma, symbol]);
+        prevSpotRef.current = spotPrice;
+    }, [spotPrice, zeroGamma, callWall, putWall, alertsEnabled, symbol, playSound]);
 
     return {
         alertsEnabled,
