@@ -177,7 +177,6 @@ def analyze_strategy(
     Analyze GEX data to generate trading signals/strategies.
     Returns a dict with signal details or None if no clear signal.
     """
-    """
     if spot_price is None or call_wall is None or put_wall is None:
         return None
 
