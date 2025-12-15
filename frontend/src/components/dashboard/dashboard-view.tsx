@@ -8,6 +8,7 @@ import { MajorLevelsTable } from "./major-levels-table";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useConfig } from "@/lib/config-context";
+import { Slider } from "@/components/ui/slider";
 
 export function DashboardView() {
     const { symbol, max_dte, strike_range_pct, major_threshold, data_wait, api_url } = useConfig();
@@ -15,6 +16,35 @@ export function DashboardView() {
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
+    const [visibleStrikes, setVisibleStrikes] = useState(12);
+    const [isInitialized, setIsInitialized] = useState(false);
+
+    // Persist visibleStrikes
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem("gex_visible_strikes");
+            if (stored) {
+                const parsed = parseInt(stored);
+                // Validation: must be number between 5 and 50
+                if (!isNaN(parsed) && parsed >= 5 && parsed <= 50) {
+                    setVisibleStrikes(parsed);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to load visibleStrikes:", error);
+        } finally {
+            setIsInitialized(true);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!isInitialized) return;
+        try {
+            localStorage.setItem("gex_visible_strikes", visibleStrikes.toString());
+        } catch (error) {
+            console.error("Failed to save visibleStrikes:", error);
+        }
+    }, [visibleStrikes, isInitialized]);
 
     const fetchData = useCallback(async (signal: AbortSignal) => {
         if (!symbol) return;
@@ -115,12 +145,32 @@ export function DashboardView() {
                     </div>
 
                     <div className="grid gap-4 md:grid-cols-1">
+                        <div className="flex justify-end items-center gap-4 mb-2">
+                            <span className="text-sm font-medium text-muted-foreground">Zoom Level: +/- {visibleStrikes} Strikes</span>
+                            <Slider
+                                value={[visibleStrikes]}
+                                min={5}
+                                max={50}
+                                step={1}
+                                onValueChange={(v) => setVisibleStrikes(v[0])}
+                                className="w-[200px]"
+                            />
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setVisibleStrikes(12)}
+                                className="h-8 text-xs"
+                            >
+                                Reset
+                            </Button>
+                        </div>
                         <GEXChart
                             data={data.strike_gex}
                             spotPrice={data.spot_price}
                             callWall={data.call_wall}
                             putWall={data.put_wall}
                             zeroGamma={data.zero_gamma_level}
+                            visibleStrikes={visibleStrikes}
                         />
                     </div>
                 </>

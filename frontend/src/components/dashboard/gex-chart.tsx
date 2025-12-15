@@ -19,12 +19,13 @@ interface GEXChartProps {
     callWall?: number;
     putWall?: number;
     zeroGamma?: number;
+    visibleStrikes?: number;
 }
 
-export function GEXChart({ data, spotPrice, callWall, putWall, zeroGamma }: GEXChartProps) {
-    // Filter data to show only +/- 12 strikes around the spot price to eliminate scrolling
+export function GEXChart({ data, spotPrice, callWall, putWall, zeroGamma, visibleStrikes = 12 }: GEXChartProps) {
+    // Filter data to show only +/- visibleStrikes around the spot price to eliminate scrolling
     // and keep the view compact and focused.
-    const RANGE = 12; // Number of strikes above and below spot to show
+    const RANGE = visibleStrikes; // Number of strikes above and below spot to show
 
     // Ensure data is sorted by strike
     const sortedData = [...data].sort((a, b) => a.Strike - b.Strike);
