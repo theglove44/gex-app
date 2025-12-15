@@ -8,9 +8,12 @@ import asyncio
 import os
 from datetime import date
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Dict, Any
+import datetime
 import pandas as pd
 from dotenv import load_dotenv
+
+GEX_REVERSION_THRESHOLD = 1_000_000_000  # $1B Net GEX threshold
 
 # The tastytrade SDK uses Python 3.10+ union type syntax (e.g., `date | None`).
 # Provide a clear error before importing it on older interpreters to avoid
@@ -44,6 +47,7 @@ class GEXResult:
     major_levels: pd.DataFrame  # Filtered major walls
     call_wall: Optional[float]  # Highest positive GEX strike
     put_wall: Optional[float]  # Lowest negative GEX strike
+    strategy: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 
 
@@ -159,6 +163,73 @@ def calculate_zero_gamma(strike_gex: pd.DataFrame, spot: float) -> Optional[floa
             zero_cross = x1 - y1 * (x2 - x1) / (y2 - y1)
             return round(zero_cross, 2)
 
+    return None
+
+
+def analyze_strategy(
+    total_gex: float,
+    spot_price: float,
+    call_wall: float,
+    put_wall: float,
+    zero_gamma: float
+) -> Optional[Dict[str, Any]]:
+    """
+    Analyze GEX data to generate trading signals/strategies.
+    Returns a dict with signal details or None if no clear signal.
+    """
+    """
+    if spot_price is None or call_wall is None or put_wall is None:
+        return None
+
+    current_hour = datetime.datetime.now().hour
+    
+    # 1. Mean Reversion Play (Positive GEX Regime)
+    # Condition: High positive GEX, price between walls
+    if total_gex > GEX_REVERSION_THRESHOLD:  # > $1B Net GEX (Configurable)
+        if put_wall < spot_price < call_wall:
+            return {
+                "signal": "MEAN_REVERSION",
+                "bias": "NEUTRAL",
+                "message": "Market in Positive Gamma ($1B+). Volatility dampened. Fade moves to walls.",
+                "validity": "High",
+                "color": "emerald" # UI hint
+            }
+
+    # 2. Acceleration Play (Negative GEX Regime)
+    # Condition: Negative GEX OR Price below Zero Gamma (flip point)
+    # This implies dealers are short gamma and must chase price (accelerant)
+    is_neg_gamma = total_gex < 0
+    price_below_flip = (zero_gamma is not None) and (spot_price < zero_gamma)
+    
+    if is_neg_gamma or price_below_flip:
+        return {
+            "signal": "ACCELERATION",
+            "bias": "BEARISH_VOL", # High Volatility Expectation
+            "message": "Negative Gamma detected. Dealers chasing price. Expect range expansion.",
+            "validity": "High",
+            "color": "rose"
+        }
+
+    # 3. Magnet Pinning (Late Day)
+    # Condition: After 2PM (14:00), price near a major wall (< 0.5% away)
+    if current_hour >= 14:
+        # Filter valid walls
+        valid_walls = [w for w in [call_wall, put_wall] if w is not None]
+        if not valid_walls:
+            return None
+            
+        nearest_wall = min(valid_walls, key=lambda x: abs(x - spot_price))
+        dist_pct = abs(spot_price - nearest_wall) / spot_price
+        
+        if dist_pct < 0.005: # Within 0.5%
+            return {
+                "signal": "MAGNET_PIN",
+                "bias": "NEUTRAL",
+                "message": f"Price pinning to {nearest_wall} wall into close.",
+                "validity": "Medium",
+                "color": "amber"
+            }
+            
     return None
 
 
@@ -426,20 +497,18 @@ async def calculate_gex_profile(
 
         # Calculate Volume-Weighted GEX
         # Formula: NetGEX * (StrikeVolume / TotalVolume)
-        # We normalize by total volume across all strikes in the range
+        # This yields a "Volume-Weighted Net GEX" which is a relative metric of
+        # how much capital/interest is backing the GEX at that strike intraday.
+        # NOTE: This effectively downscales GEX significantly. Use as relative profile.
         total_vol_all_strikes = strike_gex['Total Volume'].sum()
         
         if total_vol_all_strikes > 0:
-            # Multiplier: how much of the total volume is at this strike?
-            # We multiply by 10 to keep the scale somewhat readable relative to raw GEX,
-            # otherwise it becomes very small fractions.
-            # actually, let's just do strict weighting: GEX * (Vol/Total)
-            # This means the sum of weighted GEX != Total GEX, but that's fine, it's a relative metric.
-            strike_gex['VolWeightedGEX'] = strike_gex['Net GEX ($M)'] * (strike_gex['Total Volume'] / total_vol_all_strikes) * 10 
+            # Pure weighting (No arbitrary multiplier)
+            strike_gex['VolWeightedGEX'] = strike_gex['Net GEX ($M)'] * (strike_gex['Total Volume'] / total_vol_all_strikes)
         else:
             strike_gex['VolWeightedGEX'] = 0.0
 
-        strike_gex['VolWeightedGEX'] = strike_gex['VolWeightedGEX'].round(4)
+        strike_gex['VolWeightedGEX'] = strike_gex['VolWeightedGEX'].round(6)
 
         # Major levels
         major_levels = strike_gex[strike_gex['Net GEX ($M)'].abs() > major_level_threshold].copy()
@@ -475,6 +544,7 @@ async def calculate_gex_profile(
             major_levels=major_levels,
             call_wall=call_wall,
             put_wall=put_wall,
+            strategy=analyze_strategy(total_gex, spot, call_wall, put_wall, zero_gamma),
             error=None
         )
 

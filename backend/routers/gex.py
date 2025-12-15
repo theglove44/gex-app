@@ -20,6 +20,13 @@ class MajorLevel(BaseModel):
     type: str  # "Call" or "Put"
     net_gex: float
 
+class StrategySignal(BaseModel):
+    signal: str
+    bias: str
+    message: str
+    validity: str
+    color: str
+
 class GEXResponse(BaseModel):
     symbol: str
     spot_price: float
@@ -28,7 +35,10 @@ class GEXResponse(BaseModel):
     call_wall: Optional[float]
     put_wall: Optional[float]
     major_levels: List[Dict[str, Any]]
-    strike_gex: List[Dict[str, Any]]  # Simplified for charting
+    strike_gex: List[Dict[str, Any]]  
+    # strike_gex includes 'VolWeightedGEX' = Net GEX * (Strike Volume / Total Volume)
+    # This is a relative metric of intraday participation.
+    strategy: Optional[StrategySignal] = None
     error: Optional[str] = None
 
 class UniverseRequest(BaseModel):
@@ -82,6 +92,7 @@ async def calculate_gex(
             put_wall=result.put_wall,
             major_levels=major_levels_data,
             strike_gex=strike_gex_data,
+            strategy=result.strategy,
             error=result.error
         )
 
@@ -138,6 +149,7 @@ async def scan_universe(
                 put_wall=None,
                 major_levels=[],
                 strike_gex=[],
+                strategy=None,
                 error=str(e)
             ))
             

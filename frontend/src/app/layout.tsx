@@ -20,6 +20,7 @@ export const metadata: Metadata = {
 };
 
 import { ConfigProvider } from "@/lib/config-context";
+import { Toaster } from "sonner";
 
 export default function RootLayout({
   children,
@@ -41,6 +42,7 @@ export default function RootLayout({
               </main>
             </div>
           </div>
+          <Toaster position="top-right" richColors theme="dark" />
         </ConfigProvider>
       </body>
     </html>
