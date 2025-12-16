@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
     BarChart,
     Bar,
@@ -53,8 +54,19 @@ export function GEXChart({ data, spotPrice, callWall, putWall, zeroGamma, visibl
 
     const dataKey = weightedMode ? "VolWeightedGEX" : "Net GEX ($M)";
 
+    // Memoize min/max strike calculations to avoid re-computation on every render
+    const { minStrike, maxStrike } = useMemo(() => {
+        if (viewData.length === 0) return { minStrike: 0, maxStrike: 0 };
+        return {
+            minStrike: Math.min(...viewData.map((d: any) => d.Strike)),
+            maxStrike: Math.max(...viewData.map((d: any) => d.Strike))
+        };
+    }, [viewData]);
+
     // Calculate max absolute GEX for significance-based opacity
-    const maxAbsGex = Math.max(...viewData.map((d: any) => Math.abs(d[dataKey])), 1);
+    const maxAbsGex = useMemo(() => {
+        return Math.max(...viewData.map((d: any) => Math.abs(d[dataKey])), 1);
+    }, [viewData, dataKey]);
 
     // Helper function to calculate bar opacity based on significance
     const getBarOpacity = (value: number) => {
@@ -162,7 +174,7 @@ export function GEXChart({ data, spotPrice, callWall, putWall, zeroGamma, visibl
                         {callWall && (
                             <ReferenceArea
                                 y1={callWall}
-                                y2={Math.max(...viewData.map((d: any) => d.Strike)) + 1}
+                                y2={maxStrike + 1}
                                 fill="rgb(239, 68, 68)"
                                 fillOpacity={0.05}
                                 stroke="none"
@@ -172,7 +184,7 @@ export function GEXChart({ data, spotPrice, callWall, putWall, zeroGamma, visibl
                         {/* Breakout Zone Below Put Wall - Red */}
                         {putWall && (
                             <ReferenceArea
-                                y1={Math.min(...viewData.map((d: any) => d.Strike)) - 1}
+                                y1={minStrike - 1}
                                 y2={putWall}
                                 fill="rgb(239, 68, 68)"
                                 fillOpacity={0.05}
