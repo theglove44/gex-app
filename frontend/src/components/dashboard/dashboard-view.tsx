@@ -28,7 +28,7 @@ import {
 import {
     getRegimeDescription,
     getRegimeBorderColor,
-    getRegimeLabel,
+    getRegimeDisplayLabel,
 } from "@/lib/market-regime";
 
 export function DashboardView() {
@@ -309,7 +309,7 @@ export function DashboardView() {
                         />
                         <KPICard
                             title="Market Regime"
-                            value={getRegimeLabel(data.total_gex)}
+                            value={getRegimeDisplayLabel(data.total_gex)}
                             subValue={getRegimeDescription(data.total_gex)}
                             className={getRegimeBorderColor(data.total_gex)}
                         />

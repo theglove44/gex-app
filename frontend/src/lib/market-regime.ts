@@ -56,6 +56,27 @@ export function getRegimeDescription(totalGex: number): string {
 }
 
 /**
+ * Get user-friendly display label for KPI cards
+ *
+ * Converts enum values to readable titles suitable for UI display
+ *
+ * @param totalGex - Total net GEX in dollars
+ * @returns Display-friendly label string
+ */
+export function getRegimeDisplayLabel(totalGex: number): string {
+    const regime = getRegimeLabel(totalGex);
+
+    switch (regime) {
+        case MarketRegime.POSITIVE:
+            return "Positive Gamma";
+        case MarketRegime.NEGATIVE:
+            return "Negative Gamma";
+        case MarketRegime.NEUTRAL:
+            return "Neutral Regime";
+    }
+}
+
+/**
  * Get border color className for KPI display
  *
  * Colors communicate regime at a glance:

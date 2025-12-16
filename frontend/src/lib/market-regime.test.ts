@@ -11,6 +11,7 @@ import {
     GEX_THRESHOLD,
     getRegimeLabel,
     getRegimeDescription,
+    getRegimeDisplayLabel,
     getRegimeBorderColor,
     getRegimeBackgroundColor,
     isPositiveGammaRegime,
@@ -96,6 +97,55 @@ describe("getRegimeDescription", () => {
             expect(description.length).toBeGreaterThan(0);
             expect(description).toBeTruthy();
         });
+    });
+});
+
+// ============================================================================
+// TEST SUITE: Display Labels (UI-Friendly)
+// ============================================================================
+
+describe("getRegimeDisplayLabel", () => {
+    test("returns 'Positive Gamma' for positive regime", () => {
+        expect(getRegimeDisplayLabel(GEX_THRESHOLD + 1)).toBe("Positive Gamma");
+        expect(getRegimeDisplayLabel(2_000_000_000)).toBe("Positive Gamma");
+    });
+
+    test("returns 'Negative Gamma' for negative regime", () => {
+        expect(getRegimeDisplayLabel(-GEX_THRESHOLD - 1)).toBe("Negative Gamma");
+        expect(getRegimeDisplayLabel(-2_000_000_000)).toBe("Negative Gamma");
+    });
+
+    test("returns 'Neutral Regime' for neutral regime", () => {
+        expect(getRegimeDisplayLabel(0)).toBe("Neutral Regime");
+        expect(getRegimeDisplayLabel(500_000_000)).toBe("Neutral Regime");
+        expect(getRegimeDisplayLabel(-500_000_000)).toBe("Neutral Regime");
+    });
+
+    test("always returns user-friendly formatted string", () => {
+        const testCases = [
+            2_000_000_000,
+            -2_000_000_000,
+            0,
+            GEX_THRESHOLD,
+            -GEX_THRESHOLD,
+        ];
+
+        testCases.forEach((gex) => {
+            const label = getRegimeDisplayLabel(gex);
+            expect(label).toBeTruthy();
+            expect(label.length).toBeGreaterThan(0);
+            // Verify it's title case, not all caps like enum
+            expect(label).not.toMatch(/^[A-Z_]+$/);
+        });
+    });
+
+    test("display label differs from enum value", () => {
+        const regime = getRegimeLabel(2_000_000_000);
+        const displayLabel = getRegimeDisplayLabel(2_000_000_000);
+
+        expect(regime).toBe(MarketRegime.POSITIVE);
+        expect(displayLabel).toBe("Positive Gamma");
+        expect(displayLabel).not.toEqual(regime);
     });
 });
 
