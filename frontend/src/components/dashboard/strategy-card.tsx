@@ -2,6 +2,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, Minus, Anchor, Zap, Target, AlertTriangle, Clock, HelpCircle } from "lucide-react";
+import {
+    getTradingApproach,
+    getRiskGuidance,
+    getTimeHorizon,
+} from "@/lib/strategy-guidance";
 
 interface StrategySignal {
     signal: string;
@@ -14,58 +19,6 @@ interface StrategySignal {
 interface StrategyCardProps {
     strategy: StrategySignal;
     onHelpClick?: () => void;
-}
-
-// ============================================================================
-// GUIDANCE FUNCTIONS
-// ============================================================================
-
-/**
- * Get trading approach guidance based on signal type
- */
-function getTradingApproach(signal: string): string {
-    switch (signal) {
-        case "MEAN_REVERSION":
-            return "Fade breakouts. Sell OTM options. Target range midpoint.";
-        case "ACCELERATION":
-            return "Trade breakouts. Buy straddles/strangles. Wide stops.";
-        case "MAGNET_PIN":
-            return "Expect consolidation near wall. Sell theta, avoid directional.";
-        default:
-            return "Monitor for clear directional signal.";
-    }
-}
-
-/**
- * Get risk guidance based on signal type
- */
-function getRiskGuidance(signal: string): string {
-    switch (signal) {
-        case "MEAN_REVERSION":
-            return "Low - Confined range expected. Watch overnight gaps.";
-        case "ACCELERATION":
-            return "High - Volatile. Use smaller position sizes.";
-        case "MAGNET_PIN":
-            return "Medium - Risk of late-day volatility if wall breaks.";
-        default:
-            return "Assess volatility relative to your risk tolerance.";
-    }
-}
-
-/**
- * Get time horizon guidance based on signal type
- */
-function getTimeHorizon(signal: string): string {
-    switch (signal) {
-        case "MEAN_REVERSION":
-            return "Intraday to 1-3 days (within DTE window)";
-        case "ACCELERATION":
-            return "Same day - momentum exhaustion can be rapid";
-        case "MAGNET_PIN":
-            return "Into market close (typically after 2 PM)";
-        default:
-            return "Monitor throughout trading session.";
-    }
 }
 
 export function StrategyCard({ strategy, onHelpClick }: StrategyCardProps) {
