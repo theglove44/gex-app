@@ -7,7 +7,7 @@ import { MajorLevelsTable } from "./major-levels-table";
 import { HelpPanel } from "./help-panel";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { useGEXAlerts } from "@/hooks/use-gex-alerts";
 import { Bell, Volume2, VolumeX, HelpCircle, Target, ChevronDown, Activity } from "lucide-react";
 import { Loader2, Zap } from "lucide-react";
