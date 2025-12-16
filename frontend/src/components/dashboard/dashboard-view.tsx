@@ -8,13 +8,16 @@ import { HelpPanel } from "./help-panel";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useGEXAlerts } from "@/hooks/use-gex-alerts";
-import { Bell, Volume2, VolumeX, HelpCircle } from "lucide-react";
+import { Bell, Volume2, VolumeX, HelpCircle, Target, ChevronDown } from "lucide-react";
 import { Loader2, Zap } from "lucide-react";
 import { useConfig } from "@/lib/config-context";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { StrategyCard } from "./strategy-card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 export function DashboardView() {
     const {
@@ -273,6 +276,36 @@ export function DashboardView() {
                             className="border-l-4 border-l-rose-500"
                         />
                     </div>
+
+                    {/* Major Levels Collapsible Section */}
+                    {data.major_levels && data.major_levels.length > 0 && (
+                        <Collapsible defaultOpen={false}>
+                            <Card className="border-sidebar-border">
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                                    <div className="flex items-center gap-2">
+                                        <Target className="h-4 w-4" />
+                                        <CardTitle>Key Price Levels</CardTitle>
+                                        <Badge variant="outline" className="ml-2">{data.major_levels.length} Strikes</Badge>
+                                    </div>
+                                    <CollapsibleTrigger asChild>
+                                        <Button variant="ghost" size="sm" className="w-9 p-0">
+                                            <ChevronDown className="h-4 w-4 transition-transform duration-200" />
+                                        </Button>
+                                    </CollapsibleTrigger>
+                                </CardHeader>
+                                <CollapsibleContent>
+                                    <CardContent className="pt-0">
+                                        <MajorLevelsTable
+                                            data={data.major_levels}
+                                            spotPrice={data.spot_price}
+                                            callWall={data.call_wall}
+                                            putWall={data.put_wall}
+                                        />
+                                    </CardContent>
+                                </CollapsibleContent>
+                            </Card>
+                        </Collapsible>
+                    )}
 
                     <div className="grid gap-4 md:grid-cols-1">
                         <div className="flex justify-end items-center gap-4 mb-2">
