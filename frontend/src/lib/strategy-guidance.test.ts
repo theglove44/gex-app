@@ -5,14 +5,85 @@
  * for all supported signal types, plus edge cases and defaults.
  */
 
+import { describe, test, expect, vi } from "vitest";
 import {
     getTradingApproach,
     getRiskGuidance,
     getTimeHorizon,
     getAllGuidance,
+    isValidSignal,
+    normalizeSignal,
     StrategySignalType,
     type StrategyGuidance,
 } from "./strategy-guidance";
+
+// ============================================================================
+// TEST SUITE: Type Validation & Normalization (CRITICAL FOR TYPE SAFETY)
+// ============================================================================
+
+describe("isValidSignal", () => {
+    test("returns true for valid enum values", () => {
+        expect(isValidSignal(StrategySignalType.MEAN_REVERSION)).toBe(true);
+        expect(isValidSignal(StrategySignalType.ACCELERATION)).toBe(true);
+        expect(isValidSignal(StrategySignalType.MAGNET_PIN)).toBe(true);
+    });
+
+    test("returns true for valid string values", () => {
+        expect(isValidSignal("MEAN_REVERSION")).toBe(true);
+        expect(isValidSignal("ACCELERATION")).toBe(true);
+        expect(isValidSignal("MAGNET_PIN")).toBe(true);
+    });
+
+    test("returns false for invalid string values", () => {
+        expect(isValidSignal("mean_reversion")).toBe(false);
+        expect(isValidSignal("UNKNOWN")).toBe(false);
+        expect(isValidSignal("")).toBe(false);
+    });
+
+    test("returns false for null, undefined, and non-string types", () => {
+        expect(isValidSignal(null)).toBe(false);
+        expect(isValidSignal(undefined)).toBe(false);
+        expect(isValidSignal(123)).toBe(false);
+        expect(isValidSignal({})).toBe(false);
+        expect(isValidSignal([])).toBe(false);
+    });
+});
+
+describe("normalizeSignal", () => {
+    test("returns signal unchanged if already valid", () => {
+        expect(normalizeSignal(StrategySignalType.MEAN_REVERSION)).toBe(StrategySignalType.MEAN_REVERSION);
+        expect(normalizeSignal("ACCELERATION")).toBe("ACCELERATION");
+    });
+
+    test("converts lowercase to uppercase (backend compatibility)", () => {
+        // This handles cases where backend might send lowercase by mistake
+        expect(normalizeSignal("mean_reversion")).toBe(StrategySignalType.MEAN_REVERSION);
+        expect(normalizeSignal("acceleration")).toBe(StrategySignalType.ACCELERATION);
+        expect(normalizeSignal("magnet_pin")).toBe(StrategySignalType.MAGNET_PIN);
+    });
+
+    test("returns null for null/undefined", () => {
+        expect(normalizeSignal(null)).toBe(null);
+        expect(normalizeSignal(undefined)).toBe(null);
+    });
+
+    test("returns null for invalid signals and logs warning", () => {
+        // Spy on console.warn to verify warning is logged
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        expect(normalizeSignal("INVALID_SIGNAL")).toBe(null);
+        expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining("Unexpected signal format")
+        );
+
+        warnSpy.mockRestore();
+    });
+
+    test("handles non-string types by converting to string", () => {
+        // Number that matches no signal
+        expect(normalizeSignal(123)).toBe(null);
+    });
+});
 
 // ============================================================================
 // TEST SUITE: getTradingApproach
@@ -40,28 +111,28 @@ describe("getTradingApproach", () => {
         expect(result).toContain("theta");
     });
 
-    test("returns default approach for unknown signal", () => {
-        const result = getTradingApproach("UNKNOWN_SIGNAL");
-        expect(result).toBe("Monitor for clear directional signal.");
+    test("throws error for unknown signal", () => {
+        expect(() => getTradingApproach("UNKNOWN_SIGNAL")).toThrow(
+            /Invalid signal type/
+        );
     });
 
-    test("returns default approach for empty string", () => {
-        const result = getTradingApproach("");
-        expect(result).toBe("Monitor for clear directional signal.");
+    test("throws error for empty string", () => {
+        expect(() => getTradingApproach("")).toThrow(
+            /Invalid signal type/
+        );
     });
 
-    test("is case-sensitive for signal matching", () => {
+    test("normalizes lowercase signal to uppercase (case-insensitive for backend compatibility)", () => {
         const result = getTradingApproach("mean_reversion"); // lowercase
-        expect(result).not.toBe("Fade breakouts. Sell OTM options. Target range midpoint.");
-        expect(result).toBe("Monitor for clear directional signal.");
+        expect(result).toBe("Fade breakouts. Sell OTM options. Target range midpoint.");
     });
 
-    test("always returns a non-empty string", () => {
+    test("always returns a non-empty string for valid signals", () => {
         const signals = [
             StrategySignalType.MEAN_REVERSION,
             StrategySignalType.ACCELERATION,
             StrategySignalType.MAGNET_PIN,
-            "UNKNOWN",
         ];
 
         signals.forEach((signal) => {
@@ -98,9 +169,10 @@ describe("getRiskGuidance", () => {
         expect(result).toContain("late-day volatility");
     });
 
-    test("returns default risk guidance for unknown signal", () => {
-        const result = getRiskGuidance("UNKNOWN_SIGNAL");
-        expect(result).toBe("Assess volatility relative to your risk tolerance.");
+    test("throws error for unknown signal", () => {
+        expect(() => getRiskGuidance("UNKNOWN_SIGNAL")).toThrow(
+            /Invalid signal type/
+        );
     });
 
     test("identifies relative risk levels correctly", () => {
@@ -118,12 +190,11 @@ describe("getRiskGuidance", () => {
         expect(accelerationRisk).toContain("smaller position");
     });
 
-    test("always returns a non-empty string", () => {
+    test("always returns a non-empty string for valid signals", () => {
         const signals = [
             StrategySignalType.MEAN_REVERSION,
             StrategySignalType.ACCELERATION,
             StrategySignalType.MAGNET_PIN,
-            "UNKNOWN",
         ];
 
         signals.forEach((signal) => {
@@ -159,9 +230,10 @@ describe("getTimeHorizon", () => {
         expect(result).toContain("2 PM");
     });
 
-    test("returns default time horizon for unknown signal", () => {
-        const result = getTimeHorizon("UNKNOWN_SIGNAL");
-        expect(result).toBe("Monitor throughout trading session.");
+    test("throws error for unknown signal", () => {
+        expect(() => getTimeHorizon("UNKNOWN_SIGNAL")).toThrow(
+            /Invalid signal type/
+        );
     });
 
     test("provides specific time references where applicable", () => {
@@ -184,12 +256,11 @@ describe("getTimeHorizon", () => {
         expect(mp).toContain("market close");
     });
 
-    test("always returns a non-empty string", () => {
+    test("always returns a non-empty string for valid signals", () => {
         const signals = [
             StrategySignalType.MEAN_REVERSION,
             StrategySignalType.ACCELERATION,
             StrategySignalType.MAGNET_PIN,
-            "UNKNOWN",
         ];
 
         signals.forEach((signal) => {
@@ -264,17 +335,10 @@ describe("getAllGuidance", () => {
         expect(combined.timeHorizon).toBe(getTimeHorizon(signal));
     });
 
-    test("works with unknown signals", () => {
-        const result = getAllGuidance("UNKNOWN");
-
-        expect(result).toHaveProperty("approach");
-        expect(result).toHaveProperty("risk");
-        expect(result).toHaveProperty("timeHorizon");
-
-        // Should return default values
-        expect(result.approach).toBe("Monitor for clear directional signal.");
-        expect(result.risk).toBe("Assess volatility relative to your risk tolerance.");
-        expect(result.timeHorizon).toBe("Monitor throughout trading session.");
+    test("throws error for unknown signals", () => {
+        expect(() => getAllGuidance("UNKNOWN")).toThrow(
+            /Invalid signal type/
+        );
     });
 });
 
@@ -283,7 +347,7 @@ describe("getAllGuidance", () => {
 // ============================================================================
 
 describe("Cross-function consistency", () => {
-    test("all signals have guidance for all three types", () => {
+    test("all signals have guidance for all three types (no defaults)", () => {
         const signals = [
             StrategySignalType.MEAN_REVERSION,
             StrategySignalType.ACCELERATION,
@@ -295,10 +359,10 @@ describe("Cross-function consistency", () => {
             const risk = getRiskGuidance(signal);
             const horizon = getTimeHorizon(signal);
 
-            // All should return non-default values
-            expect(approach).not.toBe("Monitor for clear directional signal.");
-            expect(risk).not.toBe("Assess volatility relative to your risk tolerance.");
-            expect(horizon).not.toBe("Monitor throughout trading session.");
+            // All should return specific values (not generic defaults)
+            expect(approach.length).toBeGreaterThan(0);
+            expect(risk.length).toBeGreaterThan(0);
+            expect(horizon.length).toBeGreaterThan(0);
         });
     });
 
@@ -314,27 +378,39 @@ describe("Cross-function consistency", () => {
         });
     });
 
-    test("guidance functions handle all reasonable inputs", () => {
-        const testInputs = [
+    test("valid signals are handled correctly", () => {
+        const validInputs = [
             StrategySignalType.MEAN_REVERSION,
             StrategySignalType.ACCELERATION,
             StrategySignalType.MAGNET_PIN,
-            "UNKNOWN",
-            "",
-            null,
-            undefined,
         ];
 
-        testInputs.forEach((input) => {
-            // All inputs should be handled gracefully
-            expect(() => getTradingApproach(input as string)).not.toThrow();
-            expect(() => getRiskGuidance(input as string)).not.toThrow();
-            expect(() => getTimeHorizon(input as string)).not.toThrow();
+        validInputs.forEach((input) => {
+            // All valid inputs should work without throwing
+            expect(() => getTradingApproach(input)).not.toThrow();
+            expect(() => getRiskGuidance(input)).not.toThrow();
+            expect(() => getTimeHorizon(input)).not.toThrow();
 
-            // All should return strings (not null/undefined)
-            expect(typeof getTradingApproach(input as string)).toBe("string");
-            expect(typeof getRiskGuidance(input as string)).toBe("string");
-            expect(typeof getTimeHorizon(input as string)).toBe("string");
+            // All should return strings
+            expect(typeof getTradingApproach(input)).toBe("string");
+            expect(typeof getRiskGuidance(input)).toBe("string");
+            expect(typeof getTimeHorizon(input)).toBe("string");
+        });
+    });
+
+    test("invalid signals throw descriptive errors", () => {
+        const invalidInputs = [
+            "UNKNOWN",
+            "",
+            "null",
+            "undefined",
+        ];
+
+        invalidInputs.forEach((input) => {
+            // Invalid inputs should throw errors with helpful messages
+            expect(() => getTradingApproach(input)).toThrow(/Invalid signal type/);
+            expect(() => getRiskGuidance(input)).toThrow(/Invalid signal type/);
+            expect(() => getTimeHorizon(input)).toThrow(/Invalid signal type/);
         });
     });
 });
