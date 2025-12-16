@@ -7,8 +7,9 @@ import { MajorLevelsTable } from "./major-levels-table";
 import { HelpPanel } from "./help-panel";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useGEXAlerts } from "@/hooks/use-gex-alerts";
-import { Bell, Volume2, VolumeX, HelpCircle, Target, ChevronDown } from "lucide-react";
+import { Bell, Volume2, VolumeX, HelpCircle, Target, ChevronDown, Activity } from "lucide-react";
 import { Loader2, Zap } from "lucide-react";
 import { useConfig } from "@/lib/config-context";
 import { Slider } from "@/components/ui/slider";
@@ -18,6 +19,17 @@ import { StrategyCard } from "./strategy-card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+    getModeLabel,
+    getModeTooltip,
+    getModeUseCase,
+    getModeBorderClass,
+} from "@/lib/weighted-mode";
+import {
+    getRegimeDescription,
+    getRegimeBorderColor,
+    getRegimeLabel,
+} from "@/lib/market-regime";
 
 export function DashboardView() {
     const {
@@ -204,17 +216,37 @@ export function DashboardView() {
                         </PopoverContent>
                     </Popover>
 
-                    {/* Weighted Mode Toggle */}
-                    <div className="flex items-center space-x-2 border-r pr-4 mr-2">
-                        <Switch
-                            id="weighted-mode"
-                            checked={weightedMode}
-                            onCheckedChange={setWeightedMode}
-                        />
-                        <Label htmlFor="weighted-mode" className="flex items-center gap-1 cursor-pointer">
-                            <span className={weightedMode ? "text-indigo-400 font-bold" : "text-muted-foreground"}>Weighted</span>
-                        </Label>
-                    </div>
+                    {/* Enhanced Weighted Mode Toggle - Phase 5 */}
+                    <TooltipProvider>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className="border-r pr-4 mr-2 h-9">
+                                    <span className={`text-sm ${weightedMode ? "font-bold text-indigo-400" : "text-muted-foreground"}`}>
+                                        {weightedMode ? "Weighted" : "Standard"}
+                                    </span>
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80 p-4">
+                                <div className="space-y-4">
+                                    <div>
+                                        <h4 className="font-semibold mb-2">{getModeLabel(weightedMode)}</h4>
+                                        <p className="text-xs text-muted-foreground mb-3">{getModeTooltip(weightedMode)}</p>
+                                        <p className="text-xs font-medium text-accent mb-3">{getModeUseCase(weightedMode)}</p>
+                                    </div>
+                                    <div className="flex items-center justify-between border-t pt-3">
+                                        <Label htmlFor="mode-switch" className="cursor-pointer">
+                                            Toggle Mode
+                                        </Label>
+                                        <Switch
+                                            id="mode-switch"
+                                            checked={weightedMode}
+                                            onCheckedChange={setWeightedMode}
+                                        />
+                                    </div>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                    </TooltipProvider>
 
                     <div className="flex items-center space-x-2 border-r pr-4 mr-2">
                         <Switch
@@ -274,6 +306,12 @@ export function DashboardView() {
                             value={data.put_wall ? `$${data.put_wall} ` : "—"}
                             subValue="Major Support"
                             className="border-l-4 border-l-rose-500"
+                        />
+                        <KPICard
+                            title="Market Regime"
+                            value={getRegimeLabel(data.total_gex)}
+                            subValue={getRegimeDescription(data.total_gex)}
+                            className={getRegimeBorderColor(data.total_gex)}
                         />
                     </div>
 
