@@ -246,7 +246,10 @@ export function DashboardView() {
                         {/* Strategy Card - Full Width if Active */}
                         {data.strategy && (
                             <div className="md:col-span-2 lg:col-span-4">
-                                <StrategyCard strategy={data.strategy} />
+                                <StrategyCard
+                                    strategy={data.strategy}
+                                    onHelpClick={() => setHelpOpen(true)}
+                                />
                             </div>
                         )}
 
