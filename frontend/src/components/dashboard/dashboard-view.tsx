@@ -4,10 +4,11 @@ import { useEffect, useState, useCallback } from "react";
 import { KPICard } from "./kpi-card";
 import { GEXChart } from "./gex-chart";
 import { MajorLevelsTable } from "./major-levels-table";
+import { HelpPanel } from "./help-panel";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useGEXAlerts } from "@/hooks/use-gex-alerts";
-import { Bell, Volume2, VolumeX } from "lucide-react";
+import { Bell, Volume2, VolumeX, HelpCircle } from "lucide-react";
 import { Loader2, Zap } from "lucide-react";
 import { useConfig } from "@/lib/config-context";
 import { Slider } from "@/components/ui/slider";
@@ -34,6 +35,7 @@ export function DashboardView() {
     const [weightedMode, setWeightedMode] = useState(false); // New state for Weighted Mode
     const [isInitialized, setIsInitialized] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+    const [helpOpen, setHelpOpen] = useState(false);
 
     // Alerts Hook
     const { alertsEnabled, setAlertsEnabled, soundEnabled, setSoundEnabled } = useGEXAlerts({
@@ -148,6 +150,11 @@ export function DashboardView() {
                 </div>
 
                 <div className="flex items-center gap-4">
+                    {/* Help Button */}
+                    <Button variant="outline" size="icon" onClick={() => setHelpOpen(true)} title="Trading Guide & Help">
+                        <HelpCircle className="h-4 w-4" />
+                    </Button>
+
                     {/* Alert Settings Popover */}
                     <Popover>
                         <PopoverTrigger asChild>
@@ -296,6 +303,9 @@ export function DashboardView() {
                     </div>
                 </>
             )}
+
+            {/* Help Panel */}
+            <HelpPanel isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
         </div>
     );
 }
