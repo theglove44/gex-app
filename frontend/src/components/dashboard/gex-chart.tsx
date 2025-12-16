@@ -8,8 +8,10 @@ import {
     CartesianGrid,
     Tooltip,
     ReferenceLine,
+    ReferenceArea,
     ResponsiveContainer,
     Cell,
+    Label,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -50,6 +52,15 @@ export function GEXChart({ data, spotPrice, callWall, putWall, zeroGamma, visibl
     const viewData = sortedData.slice(startIndex, endIndex);
 
     const dataKey = weightedMode ? "VolWeightedGEX" : "Net GEX ($M)";
+
+    // Calculate max absolute GEX for significance-based opacity
+    const maxAbsGex = Math.max(...viewData.map((d: any) => Math.abs(d[dataKey])), 1);
+
+    // Helper function to calculate bar opacity based on significance
+    const getBarOpacity = (value: number) => {
+        const intensity = Math.abs(value) / maxAbsGex;
+        return 0.4 + intensity * 0.5; // Range from 40% to 90%
+    };
 
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
@@ -136,6 +147,52 @@ export function GEXChart({ data, spotPrice, callWall, putWall, zeroGamma, visibl
                         />
                         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--muted)', opacity: 0.1 }} />
 
+                        {/* Expected Range Zone - Green (Between Put Wall and Call Wall) */}
+                        {putWall && callWall && putWall < callWall && (
+                            <ReferenceArea
+                                y1={putWall}
+                                y2={callWall}
+                                fill="rgb(16, 185, 129)"
+                                fillOpacity={0.05}
+                                stroke="none"
+                            />
+                        )}
+
+                        {/* Breakout Zone Above Call Wall - Red */}
+                        {callWall && (
+                            <ReferenceArea
+                                y1={callWall}
+                                y2={Math.max(...viewData.map((d: any) => d.Strike)) + 1}
+                                fill="rgb(239, 68, 68)"
+                                fillOpacity={0.05}
+                                stroke="none"
+                            />
+                        )}
+
+                        {/* Breakout Zone Below Put Wall - Red */}
+                        {putWall && (
+                            <ReferenceArea
+                                y1={Math.min(...viewData.map((d: any) => d.Strike)) - 1}
+                                y2={putWall}
+                                fill="rgb(239, 68, 68)"
+                                fillOpacity={0.05}
+                                stroke="none"
+                            />
+                        )}
+
+                        {/* Zero Gamma Transition Zone - Amber */}
+                        {zeroGamma && (
+                            <ReferenceArea
+                                y1={zeroGamma * 0.98}
+                                y2={zeroGamma * 1.02}
+                                fill="rgb(251, 191, 36)"
+                                fillOpacity={0.08}
+                                stroke="rgb(251, 191, 36)"
+                                strokeDasharray="3 3"
+                                strokeOpacity={0.3}
+                            />
+                        )}
+
                         {/* Spot Price Line - Gold & Glowing */}
                         <ReferenceLine
                             y={spotPrice}
@@ -143,19 +200,66 @@ export function GEXChart({ data, spotPrice, callWall, putWall, zeroGamma, visibl
                             strokeWidth={3}
                             strokeDasharray="0"
                             className="glow-gold"
-                            label={{ position: 'insideTopRight', value: 'Spot', fill: '#FFD700', fontSize: 13, fontWeight: 'bold' }}
+                            label={{
+                                value: `Spot: $${spotPrice.toFixed(2)}`,
+                                position: 'insideTopRight',
+                                fill: '#FFD700',
+                                fontSize: 12,
+                                fontWeight: 'bold',
+                                dy: -10
+                            }}
                             ifOverflow="extendDomain"
                         />
 
-                        {/* Other Lines */}
+                        {/* Call Wall with Distance */}
                         {callWall && (
-                            <ReferenceLine y={callWall} stroke="var(--chart-1)" strokeDasharray="5 5" label={{ position: 'right', value: 'Call Wall', fill: 'var(--chart-1)', fontSize: 10 }} />
+                            <ReferenceLine
+                                y={callWall}
+                                stroke="var(--chart-1)"
+                                strokeDasharray="5 5"
+                                strokeWidth={2}
+                                label={{
+                                    value: `Call Wall: $${callWall.toFixed(0)} (+${((callWall - spotPrice) / spotPrice * 100).toFixed(1)}%)`,
+                                    position: 'right',
+                                    fill: 'var(--chart-1)',
+                                    fontSize: 11,
+                                    fontWeight: 'bold'
+                                }}
+                            />
                         )}
+
+                        {/* Put Wall with Distance */}
                         {putWall && (
-                            <ReferenceLine y={putWall} stroke="var(--chart-2)" strokeDasharray="5 5" label={{ position: 'right', value: 'Put Wall', fill: 'var(--chart-2)', fontSize: 10 }} />
+                            <ReferenceLine
+                                y={putWall}
+                                stroke="var(--chart-2)"
+                                strokeDasharray="5 5"
+                                strokeWidth={2}
+                                label={{
+                                    value: `Put Wall: $${putWall.toFixed(0)} (${((putWall - spotPrice) / spotPrice * 100).toFixed(1)}%)`,
+                                    position: 'right',
+                                    fill: 'var(--chart-2)',
+                                    fontSize: 11,
+                                    fontWeight: 'bold'
+                                }}
+                            />
                         )}
+
+                        {/* Zero Gamma Flip Point */}
                         {zeroGamma && (
-                            <ReferenceLine y={zeroGamma} stroke="var(--chart-4)" strokeDasharray="2 2" label={{ position: 'right', value: 'Zero Gamma', fill: 'var(--chart-4)', fontSize: 10 }} />
+                            <ReferenceLine
+                                y={zeroGamma}
+                                stroke="var(--chart-4)"
+                                strokeDasharray="2 2"
+                                strokeWidth={2}
+                                label={{
+                                    value: `Zero Gamma: $${zeroGamma.toFixed(0)}`,
+                                    position: 'right',
+                                    fill: 'var(--chart-4)',
+                                    fontSize: 11,
+                                    fontWeight: 'bold'
+                                }}
+                            />
                         )}
 
                         <Bar dataKey={dataKey} name={weightedMode ? "Vol-Wtd GEX" : "Net GEX"} barSize={16} radius={[4, 4, 4, 4]}>
@@ -164,7 +268,7 @@ export function GEXChart({ data, spotPrice, callWall, putWall, zeroGamma, visibl
                                     key={`cell-${index}`}
                                     fill={entry[dataKey] > 0 ? "#10B981" : "#F43F5E"}
                                     className={entry[dataKey] > 0 ? "glow-green" : "glow-red"}
-                                    fillOpacity={0.9}
+                                    fillOpacity={getBarOpacity(entry[dataKey])}
                                 />
                             ))}
                         </Bar>
