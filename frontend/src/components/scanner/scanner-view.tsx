@@ -20,9 +20,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ArrowUpDown } from "lucide-react";
+import { Loader2, ArrowUpDown, Info } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { useConfig } from "@/lib/config-context";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Data type matching API GEXResponse
 interface ScanResult {
@@ -90,7 +96,22 @@ const columns = [
         header: "Status",
         cell: (info) => {
             const err = info.getValue();
-            if (err) return <Badge variant="destructive">Error</Badge>;
+            if (err) {
+                return (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger>
+                                <Badge variant="destructive" className="cursor-help flex items-center gap-1">
+                                    Error <Info className="h-3 w-3" />
+                                </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p className="max-w-xs text-xs">{err}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                );
+            }
             return <Badge variant="outline" className="text-emerald-500 border-emerald-900 bg-emerald-950/30">Success</Badge>;
         },
     }),
@@ -98,6 +119,8 @@ const columns = [
 
 export function ScannerView() {
     const [symbolsInput, setSymbolsInput] = useState("SPX, QQQ, IWM, SPY, TSLA, NVDA, AMD");
+    const [maxDte, setMaxDte] = useState(30);
+    const [strikeRange, setStrikeRange] = useState(20);
     const [data, setData] = useState<ScanResult[]>([]);
     const [loading, setLoading] = useState(false);
     const [sorting, setSorting] = useState<SortingState>([]);
@@ -133,8 +156,8 @@ export function ScannerView() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     symbols: symbols,
-                    max_dte: 0,
-                    strike_range_pct: 0.05,
+                    max_dte: maxDte,
+                    strike_range_pct: strikeRange / 100.0, // Convert to decimal
                     major_threshold: 50,
                 }),
             });
@@ -166,6 +189,43 @@ export function ScannerView() {
                     </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">Note: Scanning multiple symbols may take several seconds due to API rate limits.</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                    <div className="space-y-2">
+                        <div className="flex justify-between">
+                            <label className="text-sm font-medium">Max DTE: {maxDte} days</label>
+                        </div>
+                        <Slider
+                            value={[maxDte]}
+                            onValueChange={(val) => setMaxDte(val[0])}
+                            max={60}
+                            min={0}
+                            step={1}
+                            className="w-full"
+                        />
+                        <p className="text-[10px] text-muted-foreground">
+                            Include options expiring within this many days. Use 0 for 0DTE only.
+                        </p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <div className="flex justify-between">
+                            <label className="text-sm font-medium">Strike Range: ±{strikeRange}%</label>
+                        </div>
+                        <Slider
+                            value={[strikeRange]}
+                            onValueChange={(val) => setStrikeRange(val[0])}
+                            max={50}
+                            min={5}
+                            step={5}
+                            className="w-full"
+                        />
+                        <p className="text-[10px] text-muted-foreground">
+                            Filter strikes within this % of spot price.
+                        </p>
+                    </div>
+                </div>
+
                 {error && <p className="text-sm text-rose-500 font-semibold">{error}</p>}
             </div>
 
