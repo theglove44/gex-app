@@ -37,10 +37,12 @@ function calculateDistance(strike: number, spotPrice: number): { dollar: number;
 /**
  * Get significance stars based on GEX magnitude
  * More extreme GEX = more stars (★★★)
+ *
+ * @param gexAmount - The GEX value for this specific strike
+ * @param maxAbsGex - Pre-calculated max absolute GEX (avoid O(n²) complexity)
  */
-function getSignificanceStars(gexAmount: number, allGexValues: number[]): string {
-    const maxGex = Math.max(...allGexValues.map(Math.abs));
-    const intensity = Math.abs(gexAmount) / maxGex;
+function getSignificanceStars(gexAmount: number, maxAbsGex: number): string {
+    const intensity = Math.abs(gexAmount) / maxAbsGex;
 
     if (intensity >= 0.8) return "★★★";
     if (intensity >= 0.5) return "★★";
@@ -49,6 +51,20 @@ function getSignificanceStars(gexAmount: number, allGexValues: number[]): string
 
 /**
  * Get context label for a strike level
+ *
+ * Context labels reflect actual market dynamics:
+ * - Call walls: Primary resistance (dealer hedging creates selling pressure)
+ * - Put walls: Primary support (dealer hedging creates buying pressure)
+ * - Call strikes above spot: Secondary resistance
+ * - Put strikes below spot: Secondary support
+ * - Put strikes above spot: Can be resistance in bearish markets (bearish put selling)
+ * - Call strikes below spot: Typically not meaningful (ignored)
+ *
+ * @param strike - Strike price
+ * @param spotPrice - Current spot price
+ * @param callWall - Primary resistance level
+ * @param putWall - Primary support level
+ * @param type - "Call" or "Put"
  */
 function getContextLabel(
     strike: number,
@@ -59,23 +75,33 @@ function getContextLabel(
 ): string {
     if (!spotPrice) return "";
 
-    // Closest resistance (call wall / above spot)
+    // Primary walls take precedence
     if (type === "Call" && callWall && strike === callWall) {
         return "Primary Resistance";
     }
 
-    // Closest support (put wall / below spot)
     if (type === "Put" && putWall && strike === putWall) {
         return "Primary Support";
     }
 
-    // Secondary levels
-    if (strike > spotPrice && type === "Call") {
+    // Call strikes above spot: Secondary resistance
+    if (type === "Call" && strike > spotPrice) {
         return "Resistance";
     }
-    if (strike < spotPrice && type === "Put") {
+
+    // Put strikes below spot: Secondary support
+    if (type === "Put" && strike < spotPrice) {
         return "Support";
     }
+
+    // Put strikes above spot: Can be resistance in bearish markets
+    // (dealers hedging short puts creates selling pressure above spot)
+    if (type === "Put" && strike > spotPrice) {
+        return "Resistance";
+    }
+
+    // Call strikes at or below spot: Not meaningful resistance
+    // (typically expired or not relevant for bullish positioning)
 
     return "";
 }
@@ -111,7 +137,7 @@ export function MajorLevelsTable({ data, spotPrice, callWall, putWall }: MajorLe
                         ) : (
                             data.map((level, i) => {
                                 const distance = spotPrice ? calculateDistance(level.Strike, spotPrice) : null;
-                                const significance = getSignificanceStars(level["Net GEX ($M)"], allGexValues);
+                                const significance = getSignificanceStars(level["Net GEX ($M)"], maxAbsGex);
                                 const contextLabel = getContextLabel(level.Strike, spotPrice, callWall, putWall, level.Type);
                                 const isWall = (level.Type === "Call" && level.Strike === callWall) ||
                                     (level.Type === "Put" && level.Strike === putWall);
