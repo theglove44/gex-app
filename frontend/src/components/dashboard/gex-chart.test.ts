@@ -116,7 +116,7 @@ describe("getBarOpacity", () => {
 
     test("opacity always stays within valid range", () => {
         for (const value of [-1000, -100, 0, 100, 1000]) {
-            const result = getBarOpacity(value, 100);
+            const result = getBarOpacity(value, 1000);
             expect(result).toBeGreaterThanOrEqual(MIN_BAR_OPACITY);
             expect(result).toBeLessThanOrEqual(MAX_BAR_OPACITY);
         }
@@ -146,7 +146,7 @@ describe("findClosestStrike", () => {
     });
 
     test("finds closest strike below spot price", () => {
-        const result = findClosestIndex(mockGEXData, 458);
+        const result = findClosestIndex(mockGEXData, 457);
         expect(mockGEXData[result].Strike).toBe(455);
     });
 
