@@ -24,7 +24,7 @@ sleep 2
 # detailed output for frontend
 echo "🖥️  Starting Frontend (Next.js) on :3000..."
 cd frontend
-npm run dev &
+PATH=$PATH:/opt/homebrew/bin npm run dev &
 FRONTEND_PID=$!
 
 echo "✅ App running at http://localhost:3000"

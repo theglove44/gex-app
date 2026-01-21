@@ -2,7 +2,6 @@ import streamlit as st
 
 from gex_app.ui.components import apply_base_theme
 
-
 apply_base_theme()
 
 

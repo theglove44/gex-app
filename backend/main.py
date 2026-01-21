@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from backend.routers import gex
 
 app = FastAPI(
@@ -9,11 +10,7 @@ app = FastAPI(
 )
 
 # CORS Configuration
-origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "*"
-]
+origins = ["http://localhost:3000", "http://127.0.0.1:3000", "*"]
 
 app.add_middleware(
     CORSMiddleware,

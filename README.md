@@ -2,24 +2,27 @@
 
 ![Gamma Exposure Profile](assets/gex_profile_screenshot.png)
 
-A Python-based tool for calculating Gamma Exposure (GEX) using the Tastytrade API and dxFeed.
+A comprehensive Gamma Exposure (GEX) analysis tool for Tastytrade, featuring both a modern **Full-Stack Web Dashboard** and standalone **Analysis Scripts**.
 
 ## Features
 
-### Dashboard Overview
-Monitor GEX levels, Gamma Walls, and detailed option flow in real-time.
+- **Institutional Dashboard**: High-fidelity dark mode UI using Next.js & Shadcn UI.
+- **Real-Time Data**: Streaming market data via dxFeed (dxLink).
+- **GEX Profiling**: Calculate Zero Gamma levels, Call/Put Walls, and detailed option flow.
+- **Visualizations**: Interactive charts for Net GEX, Strike distribution, and Major Levels.
+- **Universe Scanner**: Analyze multiple symbols efficiently.
 
-![Load & Scroll Demo](assets/demo_load_scroll.webp)
+## Architecture
 
-## Overview
-
-This project provides scripts to fetch option chain data, calculate GEX profiles (including Zero Gamma levels), and analyze market gamma exposure. It uses dxLink for real-time data streaming.
+- **Frontend** (`/frontend`): TypeScript / Next.js / Shadcn UI
+- **Backend** (`/backend`): Python / FastAPI (Handles connection, streaming, and calculations)
+- **Scripts** (`/`): Standalone Python scripts for quick analysis and probing.
 
 ## Prerequisites
 
-- Python 3.10+ (required by the tastytrade SDK)
-- A Tastytrade account (for API access).
-- A valid Tastytrade refresh token and client secret.
+- **Python 3.10+**
+- **Node.js 18+** (for the Web Dashboard)
+- **Tastytrade Account** (with API access)
 
 ## Installation
 
@@ -29,96 +32,75 @@ This project provides scripts to fetch option chain data, calculate GEX profiles
     cd gex-tool
     ```
 
-2.  **Create and activate a virtual environment:**
+2.  **Set up Python Environment:**
     ```bash
     python -m venv .venv
-    source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
-    ```
-
-3.  **Install dependencies:**
-    ```bash
+    source .venv/bin/activate  # Windows: .venv\Scripts\activate
     pip install -r requirements.txt
     ```
 
-## Configuration
+3.  **Set up Frontend:**
+    ```bash
+    cd frontend
+    npm install
+    cd ..
+    ```
 
-1.  Copy `.env.example` to `.env`:
+4.  **Configuration:**
+    Copy `.env.example` to `.env` and add your credentials:
     ```bash
     cp .env.example .env
     ```
-
-2.  Edit `.env` and add your Tastytrade credentials:
-    ```
+    Edit `.env`:
+    ```env
     TT_CLIENT_SECRET=your_client_secret_here
     TT_REFRESH_TOKEN=your_refresh_token_here
     ```
 
 ## Usage
 
-### Main GEX Calculation
-Run the main script to calculate GEX. The script currently defaults to monitoring **SPY** for the next 30 days.
+### 🚀 Full Stack Web App (Recommended)
 
+The easiest way to run the full experience is using the helper script. This launches both the FastAPI backend and Next.js frontend.
+
+```bash
+./start_app.sh
+```
+
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000/docs
+
+### 🐍 Standalone Scripts
+
+You can still use the CLI tools for quick, lightweight analysis.
+
+**Main GEX Calculation (SPY default):**
 ```bash
 python gex.py
 ```
 
-### Utilities
 
--   **Check SDK/Connection:**
-    Use `check_sdk.py` to verify your environment and API connectivity.
-    ```bash
-    python check_sdk.py
-    ```
+## Manual Startup
 
--   **Probe Instruments:**
-    Use `probe_instruments.py` to look up instrument details or symbols.
-    ```bash
-    python probe_instruments.py
-    ```
+If you prefer to run services individually:
 
-## Testing / Smoke checks
+**Backend:**
+```bash
+source .venv/bin/activate
+uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+```
 
-Use these quick checks to verify your environment before running the Streamlit dashboard or the main calculator:
-
-1. **Confirm Python version** (must be 3.10+):
-    ```bash
-    python --version
-    ```
-
-2. **Validate tastytrade SDK imports** using the provided helper (ensures the required modules are available in your environment):
-    ```bash
-    python check_sdk.py
-    ```
-
-3. **Run the Streamlit app locally** to confirm the dashboard loads:
-    ```bash
-    streamlit run streamlit_app.py
-    ```
-
-If step 1 reports a version lower than 3.10, install a newer Python interpreter and recreate your virtual environment. If step 2 fails, reinstall dependencies with `pip install -r requirements.txt`.
+**Frontend:**
+```bash
+cd frontend
+npm run dev
+```
 
 ## Browser Compatibility
 
-The GEX Tool dashboard uses modern CSS features for its dark theme and glassmorphism effects. For the best experience, use one of these browsers:
-
-### Fully Supported
-- **Chrome/Edge 76+** - Full support for all features including backdrop-filter
-- **Firefox 103+** - Full support for all features including backdrop-filter
-- **Safari 9+** - Full support with -webkit prefix for backdrop-filter
-
-### Limited Support
-- **Older browsers** - Basic functionality will work, but glassmorphism effects will fall back to solid backgrounds
-- Browsers without backdrop-filter support will use semi-transparent solid backgrounds instead of blur effects
-
-### Known Issues
-- **Internet Explorer** - Not supported (use a modern browser)
-- **Firefox < 103** - Glassmorphism effects may not render; enable `layout.css.backdrop-filter.enabled` in `about:config`
-
-### Testing Your Browser
-The dashboard will automatically detect your browser capabilities and apply appropriate fallbacks. If you experience visual issues:
-1. Ensure your browser is up to date
-2. Check that hardware acceleration is enabled in browser settings
-3. Try clearing your browser cache
+The Web Dashboard uses advanced CSS (glassmorphism/backdrop-filter).
+- **Supported**: Chrome/Edge 76+, Firefox 103+, Safari 9+
+- **Legacy**: Older browsers will see solid backgrounds instead of blur effects.
 
 ## Disclaimer
 

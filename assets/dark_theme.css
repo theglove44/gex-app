@@ -16,6 +16,12 @@
 /* === DARK THEME BASE === */
 .stApp {
     background: linear-gradient(180deg, var(--bg-primary) 0%, #0a0f14 100%);
+    color: var(--text-primary);
+}
+
+/* Force text color on all standard elements to ensure readability */
+h1, h2, h3, h4, h5, h6, p, span, li {
+    color: var(--text-primary) !important;
 }
 
 /* Main content area */
@@ -220,17 +226,44 @@ hr {
     margin: 2rem 0;
 }
 
-/* === SELECTBOX === */
-.stSelectbox>div>div {
-    background: var(--bg-card);
-    border-color: var(--bg-elevated);
+/* === SELECTBOX & MULTISELECT FIXES === */
+
+/* Force visible text and background for all Selectboxes and MultiSelects */
+div[data-baseweb="select"] {
+    background-color: #ffffff !important; /* Force White Background */
+    border-radius: 8px !important;
+    border: 1px solid #ccc !important;
 }
 
-/* Text inputs */
-.stTextInput>div>div>input {
-    background: var(--bg-card);
-    border-color: var(--bg-elevated);
-    color: var(--text-primary);
+/* The selected value text */
+div[data-baseweb="select"] span,
+div[data-baseweb="select"] div,
+div[data-baseweb="select"] input {
+    color: #000000 !important; /* Force Black Text */
+}
+
+/* The dropdown menu container (popover) */
+div[data-baseweb="popover"] {
+    background-color: #ffffff !important;
+    border: 1px solid #ccc !important;
+}
+
+/* Dropdown options text */
+div[data-baseweb="popover"] li,
+div[data-baseweb="popover"] div,
+div[data-baseweb="popover"] span {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+}
+
+/* Tags in MultiSelect */
+div[data-baseweb="tag"] {
+    background-color: #e0e0e0 !important;
+    color: #000000 !important;
+}
+
+div[data-baseweb="tag"] span {
+    color: #000000 !important;
 }
 
 /* Hide Streamlit branding */
@@ -253,58 +286,6 @@ footer {
 
 .glow-cyan {
     box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
-}
-
-/* === BASEWEB COMPONENT OVERRIDES === */
-
-/* Force light text color on Selectbox and Menus */
-div[data-baseweb="select"] span,
-div[data-baseweb="select"] div {
-    color: var(--text-primary) !important;
-}
-
-/* Force dropdown menu options to be visible */
-div[data-baseweb="menu"] li {
-    background-color: var(--bg-card) !important;
-    color: var(--text-primary) !important;
-}
-
-/* Fix Input Placeholder text */
-input::placeholder {
-    color: var(--text-muted) !important;
-    opacity: 0.7 !important;
-}
-
-/* Ensure Input text is visible */
-input {
-    color: var(--text-primary) !important;
-}
-
-/* === EXPANDER CONTENT STYLING === */
-
-/* Force text color inside expanders */
-[data-testid="stExpander"] details {
-    color: var(--text-primary) !important;
-}
-
-[data-testid="stExpander"] p,
-[data-testid="stExpander"] li,
-[data-testid="stExpander"] span {
-    color: var(--text-secondary) !important;
-}
-
-[data-testid="stExpander"] strong {
-    color: var(--text-primary) !important;
-}
-
-[data-testid="stExpander"] code {
-    background-color: var(--bg-secondary) !important;
-    color: var(--lime) !important;
-}
-
-/* Fix expander header hover state */
-[data-testid="stExpander"] summary:hover {
-    color: var(--cyan) !important;
 }
 
 /* === CHEDDARFLOW GEX TABLE === */
@@ -619,4 +600,16 @@ input {
 
 .cell-zero {
     color: #555;
+}
+
+/* Fix for Streamlit Selectbox and Multiselect contrast (User Request) */
+.stSelectbox div[data-baseweb="select"] > div,
+.stMultiSelect div[data-baseweb="select"] > div,
+div[data-baseweb="popover"] {
+    color: black !important;
+    background-color: white !important;
+}
+.stSelectbox div[data-baseweb="select"] span,
+.stMultiSelect div[data-baseweb="select"] span {
+    color: black !important;
 }

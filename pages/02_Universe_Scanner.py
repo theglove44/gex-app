@@ -1,16 +1,17 @@
-import streamlit as st
-import pandas as pd
+from typing import Any
 
-from gex_app.ui.components import apply_base_theme
-from gex_app.core.gex_core import (
-    run_gex_calculation,
-    get_credentials,
-    create_session,
-    GEXResult,
-)
+import pandas as pd
+import streamlit as st
+
 from gex_app import config
-from gex_app.layouts import Layout, load_layouts, upsert_layout, delete_layout
-from typing import Dict, Any
+from gex_app.core.gex_core import (
+    GEXResult,
+    create_session,
+    get_credentials,
+    run_gex_calculation,
+)
+from gex_app.layouts import Layout, delete_layout, load_layouts, upsert_layout
+from gex_app.ui.components import apply_base_theme
 
 apply_base_theme()
 
@@ -30,10 +31,10 @@ col1, col2, col3 = st.columns([3, 2, 2])
 with col1:
     selected_layout_name = st.selectbox(
         "Saved layouts",
-        options=["(None)"] + layout_names,
+        options=["(None)", *layout_names],
         index=0,
         key="universe_layout_select",
-        help="Select a saved layout to load"
+        help="Select a saved layout to load",
     )
 
 with col2:
@@ -42,15 +43,25 @@ with col2:
         value="",
         placeholder="e.g. SPX 0DTE scalp",
         key="universe_new_layout_name_input",
-        help="Enter a name for saving current settings"
+        help="Enter a name for saving current settings",
     )
 
 with col3:
     col3a, col3b = st.columns([1, 1])
     with col3a:
-        save_clicked = st.button("Save/Update layout", key="universe_save_layout_btn_main", use_container_width=True)
+        save_clicked = st.button(
+            "Save/Update layout",
+            key="universe_save_layout_btn_main",
+            use_container_width=True,
+        )
     with col3b:
-        delete_clicked = st.button("Delete selected", key="universe_delete_layout_btn_main", type="secondary", use_container_width=True, disabled=(selected_layout_name == "(None)"))
+        delete_clicked = st.button(
+            "Delete selected",
+            key="universe_delete_layout_btn_main",
+            type="secondary",
+            use_container_width=True,
+            disabled=(selected_layout_name == "(None)"),
+        )
 
 # Handle layout operations
 selected_layout_obj = None
@@ -62,6 +73,7 @@ if selected_layout_name not in (None, "(None)"):
 
 if selected_layout_obj is not None:
     # Update session state if layout is selected
+    # Initialize defaults first if needed
     if "universe_symbols" not in st.session_state:
         st.session_state.universe_symbols = ["SPX", "QQQ", "IWM"]
     if "universe_max_dte" not in st.session_state:
@@ -70,12 +82,30 @@ if selected_layout_obj is not None:
         st.session_state.universe_strike_range_pct = config.STRIKE_RANGE_DEFAULT
     if "universe_major_threshold" not in st.session_state:
         st.session_state.universe_major_threshold = config.MAJOR_THRESHOLD_DEFAULT
-    
-    st.session_state.universe_symbols = [selected_layout_obj.symbol] if selected_layout_obj.symbol else ["SPX", "QQQ", "IWM"]
-    st.session_state.universe_max_dte = selected_layout_obj.max_dte
-    st.session_state.universe_strike_range_pct = selected_layout_obj.strike_range_pct
-    st.session_state.universe_major_threshold = selected_layout_obj.major_threshold
-    st.rerun()
+
+    target_symbols = (
+        [selected_layout_obj.symbol]
+        if selected_layout_obj.symbol
+        else ["SPX", "QQQ", "IWM"]
+    )
+
+    current_matches = (
+        st.session_state.universe_symbols == target_symbols
+        and st.session_state.universe_max_dte == selected_layout_obj.max_dte
+        and st.session_state.universe_strike_range_pct
+        == selected_layout_obj.strike_range_pct
+        and st.session_state.universe_major_threshold
+        == selected_layout_obj.major_threshold
+    )
+
+    if not current_matches:
+        st.session_state.universe_symbols = target_symbols
+        st.session_state.universe_max_dte = selected_layout_obj.max_dte
+        st.session_state.universe_strike_range_pct = (
+            selected_layout_obj.strike_range_pct
+        )
+        st.session_state.universe_major_threshold = selected_layout_obj.major_threshold
+        st.rerun()
 
 if save_clicked:
     name = new_layout_name.strip() or selected_layout_name
@@ -88,9 +118,15 @@ if save_clicked:
             name=name,
             symbol=symbol,
             max_dte=st.session_state.get("universe_max_dte", config.DTE_DEFAULT),
-            strike_range_pct=st.session_state.get("universe_strike_range_pct", config.STRIKE_RANGE_DEFAULT),
-            major_threshold=st.session_state.get("universe_major_threshold", config.MAJOR_THRESHOLD_DEFAULT),
-            data_wait=st.session_state.get("universe_data_wait", config.DATA_WAIT_DEFAULT),
+            strike_range_pct=st.session_state.get(
+                "universe_strike_range_pct", config.STRIKE_RANGE_DEFAULT
+            ),
+            major_threshold=st.session_state.get(
+                "universe_major_threshold", config.MAJOR_THRESHOLD_DEFAULT
+            ),
+            data_wait=st.session_state.get(
+                "universe_data_wait", config.DATA_WAIT_DEFAULT
+            ),
             auto_update=st.session_state.get("universe_auto_update", False),
         )
         upsert_layout(layout)
@@ -106,6 +142,7 @@ st.markdown("---")
 
 # Symbols input section
 st.markdown("### Symbols")
+
 
 def parse_symbols(raw: str) -> list[str]:
     """Parse raw input string into a list of clean symbols."""
@@ -127,6 +164,7 @@ def parse_symbols(raw: str) -> list[str]:
             symbols.append(sym)
     return symbols
 
+
 # Initialize session state for symbols
 if "universe_symbols" not in st.session_state:
     st.session_state.universe_symbols = ["SPX", "QQQ", "IWM"]
@@ -136,7 +174,7 @@ symbols_text = st.text_area(
     "Enter symbols (one per line, or comma-separated):",
     value=st.session_state.get("universe_symbols_text", "SPX\nQQQ\nIWM"),
     height=100,
-    key="universe_symbols_text"
+    key="universe_symbols_text",
 )
 
 symbols = parse_symbols(symbols_text)
@@ -162,7 +200,7 @@ with col1:
         st.session_state.universe_max_dte = config.DTE_DEFAULT
     if "universe_data_wait" not in st.session_state:
         st.session_state.universe_data_wait = config.DATA_WAIT_DEFAULT
-    
+
     max_dte = st.slider(
         "Max Days to Expiration",
         min_value=config.DTE_MIN,
@@ -170,9 +208,9 @@ with col1:
         value=st.session_state.universe_max_dte,
         step=1,
         help="Include options expiring within this many days",
-        key="universe_max_dte_slider"
+        key="universe_max_dte_slider",
     )
-    
+
     data_wait = st.slider(
         "Data Collection Time (s)",
         min_value=config.DATA_WAIT_MIN,
@@ -180,7 +218,7 @@ with col1:
         value=st.session_state.universe_data_wait,
         step=1,
         help="Seconds to wait for streaming data",
-        key="universe_data_wait_slider"
+        key="universe_data_wait_slider",
     )
 
 with col2:
@@ -188,7 +226,7 @@ with col2:
         st.session_state.universe_strike_range_pct = config.STRIKE_RANGE_DEFAULT
     if "universe_major_threshold" not in st.session_state:
         st.session_state.universe_major_threshold = config.MAJOR_THRESHOLD_DEFAULT
-    
+
     strike_range_pct = st.slider(
         "Price range (% from spot)",
         min_value=config.STRIKE_RANGE_MIN,
@@ -196,9 +234,9 @@ with col2:
         value=st.session_state.universe_strike_range_pct,
         step=5,
         help="Filter strikes within this percentage of spot price",
-        key="universe_strike_range_slider"
+        key="universe_strike_range_slider",
     )
-    
+
     major_threshold = st.number_input(
         "Major Level Threshold ($M)",
         min_value=config.MAJOR_THRESHOLD_MIN,
@@ -206,7 +244,7 @@ with col2:
         value=st.session_state.universe_major_threshold,
         step=10,
         help="Minimum GEX for 'major' gamma walls",
-        key="universe_major_threshold_input"
+        key="universe_major_threshold_input",
     )
 
 # Update session state when parameters change
@@ -215,10 +253,15 @@ st.session_state.universe_strike_range_pct = strike_range_pct
 st.session_state.universe_major_threshold = major_threshold
 st.session_state.universe_data_wait = data_wait
 
-run_button = st.button("🚀 Run universe scan", type="primary", disabled=not symbols, use_container_width=True)
+run_button = st.button(
+    "🚀 Run universe scan",
+    type="primary",
+    disabled=not symbols,
+    use_container_width=True,
+)
 
 
-def build_universe_row(symbol: str, gex_result: GEXResult) -> Dict[str, Any]:
+def build_universe_row(symbol: str, gex_result: GEXResult) -> dict[str, Any]:
     """
     Convert a GEXResult into a flat dict row for the universe table.
     Using real GEXResult attributes: spot_price, total_gex, zero_gamma_level, etc.
@@ -247,7 +290,9 @@ def build_universe_row(symbol: str, gex_result: GEXResult) -> Dict[str, Any]:
     strongest_wall_type = None
 
     if hasattr(gex_result, "strike_gex") and not gex_result.strike_gex.empty:
-        strongest_row = gex_result.strike_gex.loc[gex_result.strike_gex["Net GEX ($M)"].abs().idxmax()]
+        strongest_row = gex_result.strike_gex.loc[
+            gex_result.strike_gex["Net GEX ($M)"].abs().idxmax()
+        ]
         strongest_wall_strike = strongest_row["Strike"]
         strongest_wall_gex = strongest_row["Net GEX ($M)"]
         strongest_wall_type = "Call" if strongest_wall_gex > 0 else "Put"
@@ -291,34 +336,48 @@ def build_universe_row_display(symbol: str, gex_result: GEXResult) -> dict:
             "Symbol": symbol,
             "Spot Price": "—",
             "Total Net GEX": "—",
-            "Call GEX": "—", 
+            "Call GEX": "—",
             "Put GEX": "—",
             "Zero Gamma": "—",
             "Call Wall": "—",
             "Put Wall": "—",
-            "Status": f"❌ {gex_result.error[:50]}..."
+            "Status": f"❌ {gex_result.error[:50]}...",
         }
-    
+
     # Calculate call/put GEX totals
-    total_call_gex = gex_result.df[gex_result.df["Type"] == "Call"]["Net GEX ($M)"].sum()
+    total_call_gex = gex_result.df[gex_result.df["Type"] == "Call"][
+        "Net GEX ($M)"
+    ].sum()
     total_put_gex = gex_result.df[gex_result.df["Type"] == "Put"]["Net GEX ($M)"].sum()
-    
+
     # Get strongest wall info
     wall_info = build_universe_row(symbol, gex_result)
-    
+
     return {
         "Symbol": gex_result.symbol,
         "Spot Price": f"${gex_result.spot_price:.2f}",
         "Total Net GEX": f"${gex_result.total_gex:+,.0f}M",
         "Call GEX": f"${total_call_gex:+,.0f}M",
         "Put GEX": f"${total_put_gex:+,.0f}M",
-        "Zero Gamma": f"${gex_result.zero_gamma_level:.0f}" if gex_result.zero_gamma_level else "—",
-        "Zero Gamma % from Spot": f"{wall_info['zero_gamma_dist_pct']:+.1f}%" if wall_info['zero_gamma_dist_pct'] is not None else "—",
+        "Zero Gamma": (
+            f"${gex_result.zero_gamma_level:.0f}"
+            if gex_result.zero_gamma_level
+            else "—"
+        ),
+        "Zero Gamma % from Spot": (
+            f"{wall_info['zero_gamma_dist_pct']:+.1f}%"
+            if wall_info["zero_gamma_dist_pct"] is not None
+            else "—"
+        ),
         "Call Wall": f"${gex_result.call_wall:.0f}" if gex_result.call_wall else "—",
         "Put Wall": f"${gex_result.put_wall:.0f}" if gex_result.put_wall else "—",
-        "Strongest Wall": f"{wall_info['strongest_wall_type']} ${wall_info['strongest_wall_strike']:.0f}" if wall_info['strongest_wall_type'] else "—",
-        "Regime": wall_info['regime'],
-        "Status": "✅ Success"
+        "Strongest Wall": (
+            f"{wall_info['strongest_wall_type']} ${wall_info['strongest_wall_strike']:.0f}"
+            if wall_info["strongest_wall_type"]
+            else "—"
+        ),
+        "Regime": wall_info["regime"],
+        "Status": "✅ Success",
     }
 
 
@@ -372,7 +431,9 @@ if run_button:
                 # Build display dataframe with enhanced formatting
                 display_results = []
                 for result in results:
-                    if isinstance(result, dict) and ("symbol" in result or "Symbol" in result):
+                    if isinstance(result, dict) and (
+                        "symbol" in result or "Symbol" in result
+                    ):
                         # This is a successful result with display formatting
                         display_results.append(result)
                     else:
@@ -381,7 +442,7 @@ if run_button:
                             "Symbol": result.get("symbol", "Unknown"),
                             "Spot Price": "—",
                             "Total Net GEX": "—",
-                            "Call GEX": "—", 
+                            "Call GEX": "—",
                             "Put GEX": "—",
                             "Zero Gamma": "—",
                             "Zero Gamma % from Spot": "—",
@@ -389,14 +450,15 @@ if run_button:
                             "Put Wall": "—",
                             "Strongest Wall": "—",
                             "Regime": "—",
-                            "Status": result.get("status", "❌ Error")
+                            "Status": result.get("status", "❌ Error"),
                         }
                         display_results.append(error_row)
-                
+
                 df = pd.DataFrame(display_results)
-                
+
                 # Pre-sort results - by default, sort by absolute zero gamma distance (closest to zero first)
                 if "Zero Gamma % from Spot" in df.columns:
+
                     def format_zero_gamma_dist(val):
                         """Extract numeric value from formatted Zero Gamma % from Spot column."""
                         if isinstance(val, str) and val != "—":
@@ -407,31 +469,39 @@ if run_button:
                             except ValueError:
                                 return 0.0
                         return 0.0
-                    
+
                     # Sort by absolute distance from zero gamma (closest to zero first)
                     df = df.sort_values(
-                        by="Zero Gamma % from Spot", 
+                        by="Zero Gamma % from Spot",
                         key=lambda s: s.apply(format_zero_gamma_dist).abs(),
-                        ascending=True
+                        ascending=True,
                     )
-                    
+
                     # Format zero gamma distance to 2 decimal places for display
                     df["Zero Gamma % from Spot"] = df["Zero Gamma % from Spot"].apply(
-                        lambda x: f"{float(str(x).replace('%', '').replace('+', '').replace('—', '0')):.2f}%" if isinstance(x, str) and x != "—" else x
+                        lambda x: (
+                            f"{float(str(x).replace('%', '').replace('+', '').replace('—', '0')):.2f}%"
+                            if isinstance(x, str) and x != "—"
+                            else x
+                        )
                     )
-                
+
                 # Alternative sorting options could be added here as user controls
                 # For example: by abs(net_gex) descending, or by symbol
-                
+
                 st.markdown("### 📊 Scan Results")
-                
+
                 # Summary metrics
-                successful_scans = [r for r in display_results if r.get("Status", "").startswith("✅")]
+                successful_scans = [
+                    r for r in display_results if r.get("Status", "").startswith("✅")
+                ]
                 total_results = len(display_results)
-                st.markdown(f"**Successfully scanned:** {len(successful_scans)}/{total_results} symbols")
-                
+                st.markdown(
+                    f"**Successfully scanned:** {len(successful_scans)}/{total_results} symbols"
+                )
+
                 st.dataframe(df, use_container_width=True, hide_index=True)
-                
+
                 # Export functionality
                 st.markdown("### 📤 Export Data")
                 csv = df.to_csv(index=False)
@@ -439,35 +509,37 @@ if run_button:
                     "⬇️ Download Results CSV",
                     data=csv,
                     file_name=f"gex_universe_scan_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
+                    mime="text/csv",
                 )
 
 # Info section
 st.markdown("---")
 with st.expander("📖 About Universe Scanner"):
-    st.markdown("""
+    st.markdown(
+        """
     **What is Universe Scanning?**
-    
+
     The Universe GEX Scanner allows you to analyze gamma exposure across multiple symbols simultaneously, providing a comprehensive market-wide view of dealer positioning.
-    
+
     **Key Features:**
-    
+
     - **Multi-Symbol Analysis**: Scan multiple ETFs, indices, or custom symbols in one run
     - **Comparative Insights**: Spot relative strength/weakness across the universe
     - **Market Structure**: Identify where gamma walls cluster across different instruments
     - **Efficient Workflow**: No need to run individual calculations for each symbol
     - **Layout Persistence**: Save and reload your scan configurations
-    
+
     **Use Cases:**
-    
+
     - Market breadth analysis across major ETFs
     - Relative strength comparison between SPY vs QQQ
     - Index options context (SPX/NDX) vs ETF alternatives (SPY/QQQ)
     - Custom basket analysis for specific sectors or themes
-    
+
     **Data Quality Notes:**
-    
+
     - Scan time increases with symbol count and wait time settings
     - Some symbols may have limited option chain depth
     - Real-time data accuracy depends on market hours and API availability
-    """)
+    """
+    )

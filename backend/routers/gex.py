@@ -1,12 +1,14 @@
+from typing import Any, Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
-import pandas as pd
-from backend.dependencies import get_tt_session
-from gex_app.core.gex_core import calculate_gex_profile
 from tastytrade import Session
 
+from backend.dependencies import get_tt_session
+from gex_app.core.gex_core import calculate_gex_profile
+
 router = APIRouter()
+
 
 class GEXRequest(BaseModel):
     symbol: str = "SPX"
@@ -15,10 +17,12 @@ class GEXRequest(BaseModel):
     major_threshold: float = 50.0
     data_wait: float = 5.0
 
+
 class MajorLevel(BaseModel):
     strike: float
     type: str  # "Call" or "Put"
     net_gex: float
+
 
 class StrategySignal(BaseModel):
     signal: str
@@ -27,6 +31,7 @@ class StrategySignal(BaseModel):
     validity: str
     color: str
 
+
 class GEXResponse(BaseModel):
     symbol: str
     spot_price: float
@@ -34,24 +39,25 @@ class GEXResponse(BaseModel):
     zero_gamma_level: Optional[float]
     call_wall: Optional[float]
     put_wall: Optional[float]
-    major_levels: List[Dict[str, Any]]
-    strike_gex: List[Dict[str, Any]]  
+    major_levels: list[dict[str, Any]]
+    strike_gex: list[dict[str, Any]]
     # strike_gex includes 'VolWeightedGEX' = Net GEX * (Strike Volume / Total Volume)
     # This is a relative metric of intraday participation.
     strategy: Optional[StrategySignal] = None
     error: Optional[str] = None
 
+
 class UniverseRequest(BaseModel):
-    symbols: List[str]
+    symbols: list[str]
     max_dte: int = 30
     strike_range_pct: float = 0.20
     major_threshold: float = 50.0
     data_wait: float = 5.0
 
+
 @router.post("/calculate", response_model=GEXResponse)
 async def calculate_gex(
-    request: GEXRequest,
-    session: Session = Depends(get_tt_session)
+    request: GEXRequest, session: Session = Depends(get_tt_session)
 ):
     try:
         # Use the async function directly to avoid event loop conflicts
@@ -61,7 +67,7 @@ async def calculate_gex(
             strike_range_pct=request.strike_range_pct,
             major_level_threshold=request.major_threshold,
             data_wait_seconds=request.data_wait,
-            session=session
+            session=session,
         )
 
         if result.error:
@@ -77,11 +83,11 @@ async def calculate_gex(
             # Rename for consistency if needed, but existing names are: 'Strike', 'Net GEX ($M)'
             # We probably want to keep them or normalize keys to lowercase snake_case
             # Let's simple to_dict('records')
-            major_levels_data = df.to_dict(orient='records')
-        
+            major_levels_data = df.to_dict(orient="records")
+
         strike_gex_data = []
         if not result.strike_gex.empty:
-            strike_gex_data = result.strike_gex.to_dict(orient='records')
+            strike_gex_data = result.strike_gex.to_dict(orient="records")
 
         return GEXResponse(
             symbol=result.symbol,
@@ -93,16 +99,16 @@ async def calculate_gex(
             major_levels=major_levels_data,
             strike_gex=strike_gex_data,
             strategy=result.strategy,
-            error=result.error
+            error=result.error,
         )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/scan", response_model=List[GEXResponse])
+
+@router.post("/scan", response_model=list[GEXResponse])
 async def scan_universe(
-    request: UniverseRequest,
-    session: Session = Depends(get_tt_session)
+    request: UniverseRequest, session: Session = Depends(get_tt_session)
 ):
     results = []
     # Process sequentially for now to avoid rate limits or session conflicts
@@ -115,42 +121,46 @@ async def scan_universe(
                 strike_range_pct=request.strike_range_pct,
                 major_level_threshold=request.major_threshold,
                 data_wait_seconds=request.data_wait,
-                session=session
+                session=session,
             )
-            
+
             # Format result
             major_levels_data = []
             if not result.major_levels.empty:
-                major_levels_data = result.major_levels.to_dict(orient='records')
-            
+                major_levels_data = result.major_levels.to_dict(orient="records")
+
             strike_gex_data = []
             if not result.strike_gex.empty:
-                strike_gex_data = result.strike_gex.to_dict(orient='records')
+                strike_gex_data = result.strike_gex.to_dict(orient="records")
 
-            results.append(GEXResponse(
-                symbol=result.symbol,
-                spot_price=float(result.spot_price) if result.spot_price else 0.0,
-                total_gex=float(result.total_gex) if result.total_gex else 0.0,
-                zero_gamma_level=result.zero_gamma_level,
-                call_wall=result.call_wall,
-                put_wall=result.put_wall,
-                major_levels=major_levels_data,
-                strike_gex=strike_gex_data,
-                error=result.error
-            ))
+            results.append(
+                GEXResponse(
+                    symbol=result.symbol,
+                    spot_price=float(result.spot_price) if result.spot_price else 0.0,
+                    total_gex=float(result.total_gex) if result.total_gex else 0.0,
+                    zero_gamma_level=result.zero_gamma_level,
+                    call_wall=result.call_wall,
+                    put_wall=result.put_wall,
+                    major_levels=major_levels_data,
+                    strike_gex=strike_gex_data,
+                    error=result.error,
+                )
+            )
         except Exception as e:
             # Add error result for this symbol
-            results.append(GEXResponse(
-                symbol=sym,
-                spot_price=0.0,
-                total_gex=0.0,
-                zero_gamma_level=None,
-                call_wall=None,
-                put_wall=None,
-                major_levels=[],
-                strike_gex=[],
-                strategy=None,
-                error=str(e)
-            ))
-            
+            results.append(
+                GEXResponse(
+                    symbol=sym,
+                    spot_price=0.0,
+                    total_gex=0.0,
+                    zero_gamma_level=None,
+                    call_wall=None,
+                    put_wall=None,
+                    major_levels=[],
+                    strike_gex=[],
+                    strategy=None,
+                    error=str(e),
+                )
+            )
+
     return results

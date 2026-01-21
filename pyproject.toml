@@ -1,0 +1,42 @@
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "A", "C4", "PT", "RET", "SIM", "ARG", "PL", "TRY", "RUF"]
+ignore = [
+    "E501", "B008", "PLR0913", "PT003", "PT008",
+    # Complexity rules - too strict for practical code
+    "PLR0912", "PLR0915", "PLR2004", "PLR0911",
+    # Style rules that can't be auto-fixed or are too noisy
+    "C408", "E701", "W293", "SIM102", "SIM108",
+    "RUF001", "RUF005", "C414",
+    # Exception handling rules - not critical
+    "B904", "TRY003", "TRY300",
+    # Import order - not critical for functionality
+    "E402", "PLC0415",
+    # Unused imports in test files
+    "F401", "ARG001",
+    # Minor style issues
+    "E741", "PLW2901",
+    # Bare except - intentional in some probe scripts
+    "E722"
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "ARG001", "PLR2004", "F401", "PLC0415", "E722"]
+".github/workflows/*" = ["ALL"]
+"scripts/*" = ["F401", "E722", "PLC0415"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["gex_tool"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if __name__ == .__main__:", "@abstractmethod"]

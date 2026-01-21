@@ -1,6 +1,6 @@
-
 try:
-    import tastytrade.instruments as instruments
+    from tastytrade import instruments
+
     print("Attributes in tastytrade.instruments:")
     print(dir(instruments))
 except ImportError as e:

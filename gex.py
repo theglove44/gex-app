@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
+
 from gex_app.core.gex_core import run_gex_calculation
+
 
 def visualize_and_print_results(result):
     """Print results and generate visualization chart."""
@@ -34,28 +36,46 @@ def visualize_and_print_results(result):
         plt.figure(figsize=(12, 6))
 
         # Color coding: Green for Call Walls (positive), Red for Put Walls (negative)
-        colors = ['green' if x >= 0 else 'red' for x in strike_gex['Net GEX ($M)']]
+        colors = ["green" if x >= 0 else "red" for x in strike_gex["Net GEX ($M)"]]
 
-        plt.bar(strike_gex['Strike'], strike_gex['Net GEX ($M)'], color=colors, width=2.0, alpha=0.7)
+        plt.bar(
+            strike_gex["Strike"],
+            strike_gex["Net GEX ($M)"],
+            color=colors,
+            width=2.0,
+            alpha=0.7,
+        )
 
         # Spot Price Line
-        plt.axvline(x=result.spot_price, color='blue', linestyle='--', label=f'Spot: {result.spot_price:.2f}')
+        plt.axvline(
+            x=result.spot_price,
+            color="blue",
+            linestyle="--",
+            label=f"Spot: {result.spot_price:.2f}",
+        )
 
-        plt.title(f'{result.symbol} Net GEX Profile (0-{result.max_dte} DTE)', fontsize=14)
-        plt.xlabel('Strike Price')
-        plt.ylabel('Net GEX ($M)')
+        plt.title(
+            f"{result.symbol} Net GEX Profile (0-{result.max_dte} DTE)", fontsize=14
+        )
+        plt.xlabel("Strike Price")
+        plt.ylabel("Net GEX ($M)")
         plt.grid(True, alpha=0.3)
         plt.legend()
 
         # Annotate Major Levels
         for _, row in result.major_levels.iterrows():
-            plt.text(row['Strike'], row['Net GEX ($M)'],
-                     f"{int(row['Net GEX ($M)'])}",
-                     ha='center', va='bottom' if row['Net GEX ($M)'] > 0 else 'top',
-                     fontsize=8, rotation=90)
+            plt.text(
+                row["Strike"],
+                row["Net GEX ($M)"],
+                f"{int(row['Net GEX ($M)'])}",
+                ha="center",
+                va="bottom" if row["Net GEX ($M)"] > 0 else "top",
+                fontsize=8,
+                rotation=90,
+            )
 
         # Save
-        plt.savefig('gex_profile.png')
+        plt.savefig("gex_profile.png")
         print("Chart saved to 'gex_profile.png'")
         plt.close()
 
@@ -65,7 +85,7 @@ def visualize_and_print_results(result):
 
 if __name__ == "__main__":
     # Run GEX calculation using the core module
-    result = run_gex_calculation(symbol='SPY', max_dte=30)
+    result = run_gex_calculation(symbol="SPY", max_dte=30)
 
     # Print results and generate visualization
     visualize_and_print_results(result)
