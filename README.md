@@ -79,6 +79,10 @@ You can still use the CLI tools for quick, lightweight analysis.
 python gex.py
 ```
 
+**Utilities:**
+- `python scripts/check_sdk.py` - Verify API connectivity.
+- `python scripts/probe_instruments.py` - Look up instrument details.
+
 
 ## Manual Startup
 
