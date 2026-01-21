@@ -2,7 +2,8 @@
 
 import { useMemo } from "react";
 import {
-    BarChart,
+    ComposedChart,
+    Line,
     Bar,
     XAxis,
     YAxis,
@@ -12,7 +13,6 @@ import {
     ReferenceArea,
     ResponsiveContainer,
     Cell,
-    Label,
     TooltipProps,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,12 +31,16 @@ interface StrikeGEXData {
     "Total OI": number;
 }
 
+interface ChartData extends StrikeGEXData {
+    CumulativeGEX: number;
+}
+
 interface GEXChartProps {
     data: StrikeGEXData[];
     spotPrice: number;
     callWall?: number;
     putWall?: number;
-    zeroGamma?: number;
+    zeroGamma?: number; // This is the Gamma Flip
     visibleStrikes?: number;
     weightedMode?: boolean;
 }
@@ -47,7 +51,7 @@ interface MinMaxStrikes {
 }
 
 interface TooltipPayload {
-    payload: StrikeGEXData;
+    payload: ChartData;
 }
 
 interface CustomTooltipProps extends TooltipProps<number, string> {
@@ -60,122 +64,101 @@ interface CustomTooltipProps extends TooltipProps<number, string> {
 
 // Chart display and visibility
 const DEFAULT_VISIBLE_STRIKES = 12;
-const MIN_VISIBLE_STRIKES = 5;
-const MAX_VISIBLE_STRIKES = 50;
 
-// Opacity ranges for significance-based visualization
-const MIN_BAR_OPACITY = 0.4;
-const MAX_BAR_OPACITY = 0.9;
-
-// Zone padding and transitions
-const ZONE_BUFFER = 1; // Strike buffer for breakout zones
-const ZERO_GAMMA_RANGE = 0.02; // ±2% around zero gamma level
+// Zone padding
+const ZONE_BUFFER = 500; // Large buffer to ensure zones cover the whole view
 
 // Zone fill opacities
-const EXPECTED_RANGE_OPACITY = 0.05; // Green zone (call/put wall range)
-const BREAKOUT_ZONE_OPACITY = 0.05; // Red zones (outside walls)
-const ZERO_GAMMA_ZONE_OPACITY = 0.08; // Amber zone (gamma transition)
+const POSITIVE_GAMMA_OPACITY = 0.05; // Green zone
+const NEGATIVE_GAMMA_OPACITY = 0.05; // Red zone
 
 // Reference line styling
-const REFERENCE_LINE_DASH_CALL_WALL = "5 5";
-const REFERENCE_LINE_DASH_PUT_WALL = "5 5";
-const REFERENCE_LINE_DASH_ZERO_GAMMA = "2 2";
-const REFERENCE_LINE_DASH_SPOT = "0";
+const REFERENCE_LINE_DASH_WALL = "5 5";
+const REFERENCE_LINE_DASH_FLIP = "0"; // Solid
+const REFERENCE_LINE_DASH_SPOT = "0"; // Solid
 
 const REFERENCE_LINE_WIDTH = 2;
-const SPOT_LINE_WIDTH = 3;
+const SPOT_LINE_WIDTH = 2;
 
 // Font sizes
 const AXIS_FONT_SIZE = 12;
-const LABEL_FONT_SIZE = 11;
-const SPOT_LABEL_FONT_SIZE = 12;
-
-// Label positioning
-const SPOT_LABEL_DY = -10;
+const LABEL_FONT_SIZE = 12;
 
 // Chart bar styling
-const BAR_SIZE = 16;
-const BAR_RADIUS = 4;
+const BAR_SIZE = 6;
+const BAR_RADIUS = 0;
 
-// Color palette (theme-aware)
+// Color palette
 const COLOR_PALETTE = {
-    // Positive/Bullish colors
-    positive: {
-        gex: "hsl(161, 72%, 40%)", // #10B981 converted - Emerald-500
-        rgb: "rgb(16, 185, 129)",
-    },
-    // Negative/Bearish colors
-    negative: {
-        gex: "hsl(348, 86%, 61%)", // #F43F5E converted - Rose-500
-        rgb: "rgb(244, 63, 94)",
-    },
-    // Reference colors (using CSS variables - will inherit from theme)
-    zone: {
-        expectedRange: "rgb(16, 185, 129)", // Green (emerald)
-        breakout: "rgb(239, 68, 68)", // Red (red-500)
-        zeroGamma: "rgb(251, 191, 36)", // Amber (amber-400)
-    },
-    reference: {
-        spot: "#FFD700", // Gold
-        callWall: "var(--chart-1)", // Cyan/Blue
-        putWall: "var(--chart-2)", // Rose
-        zeroGamma: "var(--chart-4)", // Amber
-    },
-};
+    // Bars
+    positiveBar: "#1d4ed8", // Blue (Tailwind blue-700)
+    negativeBar: "#f97316", // Orange (Tailwind orange-500)
 
-// Data key selection for standard vs weighted mode
-const DATA_KEYS = {
-    standard: "Net GEX ($M)",
-    weighted: "VolWeightedGEX",
-} as const;
+    // Line
+    cumulativeLine: "#38bdf8", // Light Blue (Tailwind sky-400)
+
+    // Background Zones
+    positiveZone: "#dcfce7", // Light Green (Tailwind green-100)
+    negativeZone: "#fee2e2", // Light Red (Tailwind red-100)
+
+    // Reference Lines
+    spot: "#22c55e", // Green (Tailwind green-500)
+    gammaFlip: "#ef4444", // Red (Tailwind red-500)
+    callWall: "#94a3b8", // Slate-400
+    putWall: "#94a3b8", // Slate-400
+};
 
 export function GEXChart({
     data,
     spotPrice,
     callWall,
     putWall,
-    zeroGamma,
+    zeroGamma, // Gamma Flip
     visibleStrikes = DEFAULT_VISIBLE_STRIKES,
     weightedMode = false
 }: GEXChartProps) {
-    // Filter data to show only +/- visibleStrikes around the spot price to eliminate scrolling
-    // and keep the view compact and focused.
+    // Range for visibility
     const RANGE = visibleStrikes;
 
-    // Ensure data is sorted by strike
-    const sortedData = useMemo(() => {
-        return [...data].sort((a, b) => a.Strike - b.Strike);
-    }, [data]);
+    // Ensure data is sorted and calculate Cumulative GEX
+    const chartData: ChartData[] = useMemo(() => {
+        const sorted = [...data].sort((a, b) => a.Strike - b.Strike);
+        let cumulative = 0;
+        return sorted.map(d => {
+            const val = weightedMode ? d.VolWeightedGEX : d["Net GEX ($M)"];
+            cumulative += val;
+            return {
+                ...d,
+                CumulativeGEX: cumulative
+            };
+        });
+    }, [data, weightedMode]);
 
-    // Find the index of the strike closest to the spot price
+    // Find closest index to spot
     const closestIndex = useMemo(() => {
         let index = 0;
         let minDiff = Number.MAX_VALUE;
-
-        for (let i = 0; i < sortedData.length; i++) {
-            const diff = Math.abs(sortedData[i].Strike - spotPrice);
+        for (let i = 0; i < chartData.length; i++) {
+            const diff = Math.abs(chartData[i].Strike - spotPrice);
             if (diff < minDiff) {
                 minDiff = diff;
                 index = i;
             }
         }
         return index;
-    }, [sortedData, spotPrice]);
+    }, [chartData, spotPrice]);
 
-    // Calculate slice indices
+    // Filter view data
     const startIndex = Math.max(0, closestIndex - RANGE);
-    const endIndex = Math.min(sortedData.length, closestIndex + RANGE + 1);
+    const endIndex = Math.min(chartData.length, closestIndex + RANGE + 1);
 
     const viewData = useMemo(
-        () => sortedData.slice(startIndex, endIndex),
-        [sortedData, startIndex, endIndex]
+        () => chartData.slice(startIndex, endIndex),
+        [chartData, startIndex, endIndex]
     );
 
-    // Select data key based on mode
-    const dataKey = weightedMode ? DATA_KEYS.weighted : DATA_KEYS.standard;
-
-    // Memoize min/max strike calculations to avoid re-computation on every render
-    const { minStrike, maxStrike }: MinMaxStrikes = useMemo(() => {
+    // Min/Max for background zones
+    const { minStrike, maxStrike } = useMemo(() => {
         if (viewData.length === 0) return { minStrike: 0, maxStrike: 0 };
         return {
             minStrike: Math.min(...viewData.map((d) => d.Strike)),
@@ -183,65 +166,51 @@ export function GEXChart({
         };
     }, [viewData]);
 
-    // Calculate max absolute GEX for significance-based opacity
-    const maxAbsGex = useMemo(() => {
-        return Math.max(...viewData.map((d) => Math.abs(d[dataKey as keyof StrikeGEXData])), 1);
+    const dataKey = weightedMode ? "VolWeightedGEX" : "Net GEX ($M)";
+
+    // Calculate max absolute values for symmetric domains to align zero lines
+    const { maxAbsGex, maxAbsCumGex } = useMemo(() => {
+        if (viewData.length === 0) return { maxAbsGex: 1, maxAbsCumGex: 1 };
+
+        const maxGex = Math.max(...viewData.map((d) => Math.abs(d[dataKey as keyof StrikeGEXData] as number)), 0.1); // Avoid 0
+        const maxCum = Math.max(...viewData.map((d) => Math.abs(d.CumulativeGEX)), 0.1);
+
+        // Add 10% buffer to max values for nice padding
+        return {
+            maxAbsGex: maxGex * 1.1,
+            maxAbsCumGex: maxCum * 1.1
+        };
     }, [viewData, dataKey]);
 
-    // Validate wall configuration (edge case: inverted walls)
-    const isValidWallConfig = useMemo(() => {
-        if (!callWall || !putWall) return true; // Single wall is always valid
-        return putWall < callWall; // Put wall should be below call wall
-    }, [callWall, putWall]);
-
-    // Helper function to calculate bar opacity based on significance
-    const getBarOpacity = (value: number): number => {
-        const intensity = Math.abs(value) / maxAbsGex;
-        return MIN_BAR_OPACITY + intensity * (MAX_BAR_OPACITY - MIN_BAR_OPACITY);
-    };
-
-    // Custom tooltip component with proper typing
     const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
         if (active && payload && payload.length) {
             const d = (payload[0] as TooltipPayload).payload;
             const netGex = d["Net GEX ($M)"];
-            const weightedGex = d.VolWeightedGEX;
 
             return (
-                <div className="bg-popover/90 backdrop-blur-md border border-border/50 p-4 rounded-xl shadow-2xl text-popover-foreground text-sm ring-1 ring-white/10">
-                    <p className="font-bold mb-3 text-lg border-b border-border/50 pb-2">Strike: ${d.Strike}</p>
-                    <div className="space-y-2">
-                        {/* Weighted GEX (Primary if mode enabled) */}
-                        {weightedMode && (
-                            <p className="flex justify-between gap-6 items-center">
-                                <span className="text-indigo-400 font-medium font-bold">Vol-Wtd GEX:</span>
-                                <span className={weightedGex > 0 ? "text-[#10B981] font-mono font-bold" : "text-[#F43F5E] font-mono font-bold"}>
-                                    {weightedGex?.toFixed(2) ?? "0.00"}
-                                </span>
-                            </p>
-                        )}
-
-                        <p className="flex justify-between gap-6 items-center">
-                            <span className="text-muted-foreground font-medium">Net GEX:</span>
-                            <span className={netGex > 0 ? "text-[#10B981] font-mono font-bold glow-green" : "text-[#F43F5E] font-mono font-bold glow-red"}>
+                <div className="bg-popover/95 backdrop-blur-md border border-border p-3 rounded-lg shadow-xl text-sm animate-in fade-in-0 zoom-in-95">
+                    <p className="font-bold mb-2 text-base border-b border-border pb-1">Strike: {d.Strike}</p>
+                    <div className="space-y-1">
+                        <p className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Net GEX:</span>
+                            <span className={netGex > 0 ? "text-blue-500 font-mono font-bold" : "text-orange-500 font-mono font-bold"}>
                                 ${netGex.toFixed(2)}M
                             </span>
                         </p>
-                        <p className="flex justify-between gap-6 items-center">
-                            <span className="text-muted-foreground font-medium">Call GEX:</span>
-                            <span className="text-[#10B981] font-mono">${d["Call GEX ($M)"]?.toFixed(2) ?? "—"}M</span>
+                        <p className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Cumulative:</span>
+                            <span className="text-sky-500 font-mono font-bold">
+                                ${d.CumulativeGEX.toFixed(2)}M
+                            </span>
                         </p>
-                        <p className="flex justify-between gap-6 items-center">
-                            <span className="text-muted-foreground font-medium">Put GEX:</span>
-                            <span className="text-[#F43F5E] font-mono">${d["Put GEX ($M)"]?.toFixed(2) ?? "—"}M</span>
+                        <div className="h-px bg-border my-2" />
+                        <p className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Call GEX:</span>
+                            <span className="text-blue-500 font-mono">${d["Call GEX ($M)"].toFixed(2)}M</span>
                         </p>
-                        <p className="flex justify-between gap-6 items-center border-t border-border/50 pt-2 mt-2">
-                            <span className="text-muted-foreground font-medium">Total Volume:</span>
-                            <span className="font-mono text-foreground/80">{d["Total Volume"]?.toLocaleString() ?? "—"}</span>
-                        </p>
-                        <p className="flex justify-between gap-6 items-center">
-                            <span className="text-muted-foreground font-medium">Total OI:</span>
-                            <span className="font-mono text-foreground/80">{d["Total OI"]?.toLocaleString() ?? "—"}</span>
+                        <p className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Put GEX:</span>
+                            <span className="text-orange-500 font-mono">${d["Put GEX ($M)"].toFixed(2)}M</span>
                         </p>
                     </div>
                 </div>
@@ -251,177 +220,191 @@ export function GEXChart({
     };
 
     return (
-        <Card className="col-span-3 border-sidebar-border bg-card flex flex-col h-[600px]">
-            <CardHeader className="flex-none py-4">
-                <CardTitle>Gamma Exposure Profile ({weightedMode ? "Volume-Weighted View" : "Neon View"})</CardTitle>
+        <Card className="col-span-3 border-none shadow-none bg-transparent">
+            {/* Header kept simple or removed as per image which has title inside chart area usually, 
+                but we'll keep the CardHeader for structure */}
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <div className="flex flex-col space-y-1">
+                    <CardTitle className="text-2xl font-bold text-center w-full">$SPX - Gamma Exposure by Strike</CardTitle>
+                    <div className="flex items-center justify-center gap-6 text-sm">
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+                            <span>Gamma Exposure by Strike</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-6 h-0.5 bg-sky-400"></div>
+                            <span>Aggregate Gamma Exposure</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-6 h-0.5 border-t border-slate-400 border-dashed"></div>
+                            <span>Put Wall</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-6 h-0.5 border-t border-slate-400 border-dashed"></div>
+                            <span>Call Wall</span>
+                        </div>
+                    </div>
+                </div>
             </CardHeader>
-            <CardContent className="flex-1 min-h-0 relative p-0 pb-2">
+            <CardContent className="h-[500px] w-full p-0">
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                        layout="vertical"
+                    <ComposedChart
                         data={viewData}
-                        margin={{ top: 20, right: 30, left: 40, bottom: 20 }}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
                     >
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} opacity={0.1} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+
+                        {/* Background Zones */}
+                        {/* Negative Gamma Zone (Below Gamma Flip) */}
+                        {zeroGamma && (
+                            <ReferenceArea
+                                x1={minStrike - ZONE_BUFFER}
+                                x2={zeroGamma}
+                                yAxisId="left"
+                                y1={-999999} // Cover full height
+                                y2={999999}
+                                fill={COLOR_PALETTE.negativeZone}
+                                fillOpacity={NEGATIVE_GAMMA_OPACITY}
+                            />
+                        )}
+
+                        {/* Positive Gamma Zone (Above Gamma Flip) */}
+                        {zeroGamma && (
+                            <ReferenceArea
+                                x1={zeroGamma}
+                                x2={maxStrike + ZONE_BUFFER}
+                                yAxisId="left"
+                                y1={-999999}
+                                y2={999999}
+                                fill={COLOR_PALETTE.positiveZone}
+                                fillOpacity={POSITIVE_GAMMA_OPACITY}
+                            />
+                        )}
+
                         <XAxis
-                            type="number"
-                            stroke="var(--muted-foreground)"
-                            fontSize={AXIS_FONT_SIZE}
-                            tickFormatter={(val) => weightedMode ? val.toFixed(1) : `$${val}M`}
-                            orientation="top"
-                            axisLine={false}
-                            tickLine={false}
-                        />
-                        <YAxis
                             dataKey="Strike"
                             type="number"
                             domain={['dataMin', 'dataMax']}
-                            stroke="var(--muted-foreground)"
-                            fontSize={AXIS_FONT_SIZE}
-                            width={50}
-                            interval={0}
                             tickCount={viewData.length}
+                            interval={0} // Show all if possible, or let recharts decide
+                            angle={0}
+                            dy={10}
                             axisLine={false}
                             tickLine={false}
+                            fontSize={AXIS_FONT_SIZE}
                         />
-                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--muted)', opacity: 0.1 }} />
+                        <YAxis
+                            yAxisId="left"
+                            orientation="left"
+                            domain={[-maxAbsGex, maxAbsGex]}
+                            tickFormatter={(val) => `${(val / 1000).toFixed(1)}B`} // Convert M to B roughly for display if large
+                            axisLine={false}
+                            tickLine={false}
+                            fontSize={AXIS_FONT_SIZE}
+                        />
+                        <YAxis
+                            yAxisId="right"
+                            orientation="right"
+                            domain={[-maxAbsCumGex, maxAbsCumGex]}
+                            tickFormatter={(val) => `${(val / 1000).toFixed(1)}B`}
+                            axisLine={false}
+                            tickLine={false}
+                            fontSize={AXIS_FONT_SIZE}
+                        />
 
-                        {/* Expected Range Zone - Green (Between Put Wall and Call Wall) */}
-                        {isValidWallConfig && putWall && callWall && (
-                            <ReferenceArea
-                                y1={putWall}
-                                y2={callWall}
-                                fill={COLOR_PALETTE.zone.expectedRange}
-                                fillOpacity={EXPECTED_RANGE_OPACITY}
-                                stroke="none"
-                            />
-                        )}
+                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
 
-                        {/* Breakout Zone Above Call Wall - Red */}
-                        {callWall && (
-                            <ReferenceArea
-                                y1={callWall}
-                                y2={maxStrike + ZONE_BUFFER}
-                                fill={COLOR_PALETTE.zone.breakout}
-                                fillOpacity={BREAKOUT_ZONE_OPACITY}
-                                stroke="none"
-                            />
-                        )}
-
-                        {/* Breakout Zone Below Put Wall - Red */}
+                        {/* Walls */}
                         {putWall && (
-                            <ReferenceArea
-                                y1={minStrike - ZONE_BUFFER}
-                                y2={putWall}
-                                fill={COLOR_PALETTE.zone.breakout}
-                                fillOpacity={BREAKOUT_ZONE_OPACITY}
-                                stroke="none"
+                            <ReferenceLine
+                                x={putWall}
+                                yAxisId="left"
+                                stroke={COLOR_PALETTE.putWall}
+                                strokeDasharray={REFERENCE_LINE_DASH_WALL}
+                            />
+                        )}
+                        {callWall && (
+                            <ReferenceLine
+                                x={callWall}
+                                yAxisId="left"
+                                stroke={COLOR_PALETTE.callWall}
+                                strokeDasharray={REFERENCE_LINE_DASH_WALL}
                             />
                         )}
 
-                        {/* Zero Gamma Transition Zone - Amber */}
-                        {zeroGamma && (
-                            <ReferenceArea
-                                y1={zeroGamma * (1 - ZERO_GAMMA_RANGE)}
-                                y2={zeroGamma * (1 + ZERO_GAMMA_RANGE)}
-                                fill={COLOR_PALETTE.zone.zeroGamma}
-                                fillOpacity={ZERO_GAMMA_ZONE_OPACITY}
-                                stroke={COLOR_PALETTE.zone.zeroGamma}
-                                strokeDasharray="3 3"
-                                strokeOpacity={0.3}
-                            />
-                        )}
-
-                        {/* Spot Price Line - Gold & Glowing */}
+                        {/* Last Price (Spot) */}
                         <ReferenceLine
-                            y={spotPrice}
-                            stroke={COLOR_PALETTE.reference.spot}
-                            strokeWidth={SPOT_LINE_WIDTH}
+                            x={spotPrice}
+                            yAxisId="left"
+                            stroke={COLOR_PALETTE.spot}
                             strokeDasharray={REFERENCE_LINE_DASH_SPOT}
-                            className="glow-gold"
+                            strokeWidth={SPOT_LINE_WIDTH}
                             label={{
-                                value: `Spot: $${spotPrice.toFixed(2)}`,
-                                position: 'insideTopRight',
-                                fill: COLOR_PALETTE.reference.spot,
-                                fontSize: SPOT_LABEL_FONT_SIZE,
-                                fontWeight: 'bold',
-                                dy: SPOT_LABEL_DY
+                                value: `Last Price: ${spotPrice.toLocaleString()}`,
+                                position: 'insideTopLeft',
+                                fill: COLOR_PALETTE.spot,
+                                fontSize: LABEL_FONT_SIZE,
+                                fontWeight: 'bold'
                             }}
-                            ifOverflow="extendDomain"
                         />
 
-                        {/* Call Wall with Distance */}
-                        {callWall && (
-                            <ReferenceLine
-                                y={callWall}
-                                stroke={COLOR_PALETTE.reference.callWall}
-                                strokeDasharray={REFERENCE_LINE_DASH_CALL_WALL}
-                                strokeWidth={REFERENCE_LINE_WIDTH}
-                                label={{
-                                    value: `Call Wall: $${callWall.toFixed(0)} (+${((callWall - spotPrice) / spotPrice * 100).toFixed(1)}%)`,
-                                    position: 'right',
-                                    fill: COLOR_PALETTE.reference.callWall,
-                                    fontSize: LABEL_FONT_SIZE,
-                                    fontWeight: 'bold'
-                                }}
-                            />
-                        )}
-
-                        {/* Put Wall with Distance */}
-                        {putWall && (
-                            <ReferenceLine
-                                y={putWall}
-                                stroke={COLOR_PALETTE.reference.putWall}
-                                strokeDasharray={REFERENCE_LINE_DASH_PUT_WALL}
-                                strokeWidth={REFERENCE_LINE_WIDTH}
-                                label={{
-                                    value: `Put Wall: $${putWall.toFixed(0)} (${((putWall - spotPrice) / spotPrice * 100).toFixed(1)}%)`,
-                                    position: 'right',
-                                    fill: COLOR_PALETTE.reference.putWall,
-                                    fontSize: LABEL_FONT_SIZE,
-                                    fontWeight: 'bold'
-                                }}
-                            />
-                        )}
-
-                        {/* Zero Gamma Flip Point */}
+                        {/* Gamma Flip */}
                         {zeroGamma && (
                             <ReferenceLine
-                                y={zeroGamma}
-                                stroke={COLOR_PALETTE.reference.zeroGamma}
-                                strokeDasharray={REFERENCE_LINE_DASH_ZERO_GAMMA}
-                                strokeWidth={REFERENCE_LINE_WIDTH}
+                                x={zeroGamma}
+                                yAxisId="left"
+                                stroke={COLOR_PALETTE.gammaFlip}
+                                strokeDasharray={REFERENCE_LINE_DASH_FLIP}
+                                strokeWidth={SPOT_LINE_WIDTH}
                                 label={{
-                                    value: `Zero Gamma: $${zeroGamma.toFixed(0)}`,
-                                    position: 'right',
-                                    fill: COLOR_PALETTE.reference.zeroGamma,
+                                    value: `Gamma Flip: ${zeroGamma.toLocaleString()}`,
+                                    position: 'insideTopRight',
+                                    fill: COLOR_PALETTE.gammaFlip,
                                     fontSize: LABEL_FONT_SIZE,
                                     fontWeight: 'bold'
                                 }}
                             />
                         )}
 
+                        {/* Cumulative Gamma Line */}
+                        <Line
+                            yAxisId="right"
+                            type="monotone"
+                            dataKey="CumulativeGEX"
+                            stroke={COLOR_PALETTE.cumulativeLine}
+                            strokeWidth={2}
+                            dot={false}
+                            activeDot={{ r: 6 }}
+                        />
+
+                        {/* Net GEX Bars */}
                         <Bar
                             dataKey={dataKey}
-                            name={weightedMode ? "Vol-Wtd GEX" : "Net GEX"}
+                            yAxisId="left"
                             barSize={BAR_SIZE}
-                            radius={[BAR_RADIUS, BAR_RADIUS, BAR_RADIUS, BAR_RADIUS]}
                         >
-                            {viewData.map((entry: StrikeGEXData, index: number) => {
-                                const gexValue = entry[dataKey as keyof StrikeGEXData] as number;
-                                const isPositive = gexValue > 0;
-                                return (
-                                    <Cell
-                                        key={`cell-${index}`}
-                                        fill={isPositive ? COLOR_PALETTE.positive.rgb : COLOR_PALETTE.negative.rgb}
-                                        className={isPositive ? "glow-green" : "glow-red"}
-                                        fillOpacity={getBarOpacity(gexValue)}
-                                    />
-                                );
-                            })}
+                            {viewData.map((entry, index) => (
+                                <Cell
+                                    key={`cell-${index}`}
+                                    fill={entry[dataKey as keyof StrikeGEXData] > 0 ? COLOR_PALETTE.positiveBar : COLOR_PALETTE.negativeBar}
+                                />
+                            ))}
                         </Bar>
-                    </BarChart>
+
+                    </ComposedChart>
                 </ResponsiveContainer>
+
+                {/* Legend / Info Footer */}
+                <div className="mt-4 px-4 py-2 border-t border-border/50 text-xs text-muted-foreground space-y-2">
+                    <div className="flex items-start gap-2">
+                        <div className="w-4 h-4 mt-0.5 rounded border border-green-500 bg-green-500/10 shrink-0"></div>
+                        <p><span className="font-bold text-foreground">Positive Gamma:</span> When price is above the gamma flip point, dealers are considered net long gamma...</p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                        <div className="w-4 h-4 mt-0.5 rounded border border-red-500 bg-red-500/10 shrink-0"></div>
+                        <p><span className="font-bold text-foreground">Negative Gamma:</span> When price is below the gamma flip point, dealers are considered net short gamma...</p>
+                    </div>
+                </div>
             </CardContent>
         </Card>
     );

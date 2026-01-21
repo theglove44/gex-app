@@ -21,7 +21,7 @@ async def main():
             result = await calculate_gex_profile(
                 symbol=sym,
                 max_dte=max_dte,
-                strike_range_pct=0.05,
+                strike_count=100,  # Replaced strike_range_pct with a fixed count
                 major_level_threshold=50.0,
                 data_wait_seconds=2.0,
             )

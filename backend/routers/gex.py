@@ -64,7 +64,7 @@ async def calculate_gex(
         result = await calculate_gex_profile(
             symbol=request.symbol,
             max_dte=request.max_dte,
-            strike_range_pct=request.strike_range_pct,
+            strike_count=100,  # Replaced strike_range_pct with a fixed count
             major_level_threshold=request.major_threshold,
             data_wait_seconds=request.data_wait,
             session=session,
@@ -118,7 +118,7 @@ async def scan_universe(
             result = await calculate_gex_profile(
                 symbol=sym,
                 max_dte=request.max_dte,
-                strike_range_pct=request.strike_range_pct,
+                strike_count=100,  # Replaced strike_range_pct with a fixed count
                 major_level_threshold=request.major_threshold,
                 data_wait_seconds=request.data_wait,
                 session=session,
